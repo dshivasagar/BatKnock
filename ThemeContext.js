@@ -56,23 +56,23 @@ export const THEMES = {
   },
   // ── Light theme: soft blue-white glassmorphism ───────────────────────────
   light: {
-    bg:           '#f0f4ff',   // very soft blue-white — like the reference screenshot
-    bgCard:       '#ffffff',   // pure white cards with shadow feel
-    bgInput:      '#f8faff',   // almost white input
-    bgHeader:     '#1e40af',   // deep blue header
-    border:       '#dbeafe',   // blue-100 — very soft blue border
-    borderLight:  '#eff6ff',   // blue-50 — barely-there dividers
-    text:         '#0f172a',   // slate-900 — near black, readable
-    textSub:      '#1e3a5f',   // dark blue-grey secondary text
-    textMuted:    '#475569',   // slate-600 muted text
-    accent:       '#2563eb',   // blue-600 — primary action
+    bg:           '#f4f8ff',   // soft blue-white page
+    bgCard:       '#ffffff',   // pure white cards
+    bgInput:      '#f0f6ff',   // very light blue input
+    bgHeader:     '#4899e8',   // lighter sky blue header
+    border:       '#bfdbfe',   // blue-200 — soft border
+    borderLight:  '#e0f0ff',   // barely-there dividers
+    text:         '#0f172a',   // near black
+    textSub:      '#334d70',   // dark blue-grey
+    textMuted:    '#5a7a9e',   // medium blue-grey
+    accent:       '#60a5fa',   // blue-400 — light sky blue (was blue-600)
     accentDim:    '#dbeafe',   // blue-100 tint
-    accentText:   '#1d4ed8',   // blue-700 text on light
-    red:          '#dc2626',   // red-600
-    blue:         '#2563eb',   // blue-600
-    orange:       '#d97706',   // amber-600
+    accentText:   '#2563eb',   // blue-600 for text on light bg
+    red:          '#dc2626',
+    blue:         '#60a5fa',   // light sky blue
+    orange:       '#d97706',
     tabBg:        '#ffffff',
-    tabBorder:    '#dbeafe',
+    tabBorder:    '#bfdbfe',
     statusBarStyle: 'dark',
   },
 };
@@ -95,6 +95,7 @@ export function ThemeProvider({ children, fontsLoaded = false }) {
   useEffect(() => {
     const resolved = mode === 'system' ? (systemScheme || 'dark') : mode;
     setTheme(THEMES[resolved] || THEMES.dark);
+    // Clear mode needs a gradient bg on the root view — handled in App.js
     AsyncStorage.setItem('batknock_theme', mode);
   }, [mode, systemScheme]);
 

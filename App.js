@@ -3,6 +3,7 @@ import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { StatusBar, Text, View, ActivityIndicator } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider, useTheme } from './ThemeContext';
 import HomeScreen from './screens/HomeScreen';
 import BatListScreen from './screens/BatListScreen';
@@ -79,15 +80,17 @@ function AppNavigator() {
         barStyle={mode === 'light' ? 'dark-content' : 'light-content'}
         translucent={false}
       />
-      <Stack.Navigator screenOptions={{ headerShown: false, cardStyle: { backgroundColor: theme.bg } }}>
-        <Stack.Screen name="Main" component={MainTabs} />
-        <Stack.Screen name="CreateBat" component={CreateBatScreen} />
-        <Stack.Screen name="BatProfile" component={BatProfileScreen} />
-        <Stack.Screen name="KnockingSession" component={KnockingSessionScreen} />
-        <Stack.Screen name="Heatmap" component={HeatmapScreen} />
-        <Stack.Screen name="ActivityLog" component={ActivityLogScreen} />
-        <Stack.Screen name="MicTest" component={MicTestScreen} />
-      </Stack.Navigator>
+      <View style={{ flex: 1, backgroundColor: theme.bg }}>
+        <Stack.Navigator screenOptions={{ headerShown: false, cardStyle: { backgroundColor: 'transparent' } }}>
+          <Stack.Screen name="Main" component={MainTabs} />
+          <Stack.Screen name="CreateBat" component={CreateBatScreen} />
+          <Stack.Screen name="BatProfile" component={BatProfileScreen} />
+          <Stack.Screen name="KnockingSession" component={KnockingSessionScreen} />
+          <Stack.Screen name="Heatmap" component={HeatmapScreen} />
+          <Stack.Screen name="ActivityLog" component={ActivityLogScreen} />
+          <Stack.Screen name="MicTest" component={MicTestScreen} />
+        </Stack.Navigator>
+      </View>
     </NavigationContainer>
   );
 }
@@ -95,8 +98,10 @@ function AppNavigator() {
 export default function App() {
   // Fonts not loaded yet — using system font (SF Pro / Roboto)
   return (
-    <ThemeProvider fontsLoaded={false}>
-      <AppNavigator />
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider fontsLoaded={false}>
+        <AppNavigator />
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }

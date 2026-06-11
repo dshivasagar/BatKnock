@@ -6,6 +6,7 @@
  */
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { useTheme, fontFamily } from '../ThemeContext';
 import AppText from './AppText';
 
@@ -31,6 +32,17 @@ function ChevronLeft({ color, size = 16 }) {
       }} />
     </View>
   );
+
+  if (mode === 'clear') {
+    return (
+      <BlurView intensity={70} tint="dark"
+        style={{ borderBottomWidth: 1, borderBottomColor: theme.border }}>
+        {navContent}
+      </BlurView>
+    );
+  }
+
+  return navContent;
 }
 
 // House icon: roof triangle + box body
@@ -58,6 +70,17 @@ function HouseIcon({ color, size = 16 }) {
       }} />
     </View>
   );
+
+  if (mode === 'clear') {
+    return (
+      <BlurView intensity={70} tint="dark"
+        style={{ borderBottomWidth: 1, borderBottomColor: theme.border }}>
+        {navContent}
+      </BlurView>
+    );
+  }
+
+  return navContent;
 }
 
 export function NavButton({ onPress, type = 'back', accent, children, style }) {
@@ -88,8 +111,9 @@ export function NavButton({ onPress, type = 'back', accent, children, style }) {
 }
 
 export default function NavBar({ navigation, title, subtitle, showHome = false, right }) {
-  const { theme, fontsLoaded } = useTheme();
-  return (
+  const { theme, mode, fontsLoaded } = useTheme();
+
+  const navContent = (
     <View style={{
       flexDirection: 'row',
       alignItems: 'center',
@@ -98,7 +122,7 @@ export default function NavBar({ navigation, title, subtitle, showHome = false, 
       paddingVertical: 12,
       borderBottomWidth: 1,
       borderBottomColor: theme.border,
-      backgroundColor: theme.bgCard,
+      backgroundColor: mode === 'clear' ? 'transparent' : theme.bgCard,
     }}>
       <NavButton type="back" onPress={() => navigation.goBack()} />
 
@@ -120,4 +144,15 @@ export default function NavBar({ navigation, title, subtitle, showHome = false, 
       )}
     </View>
   );
+
+  if (mode === 'clear') {
+    return (
+      <BlurView intensity={70} tint="dark"
+        style={{ borderBottomWidth: 1, borderBottomColor: theme.border }}>
+        {navContent}
+      </BlurView>
+    );
+  }
+
+  return navContent;
 }

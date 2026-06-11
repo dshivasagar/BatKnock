@@ -1,11 +1,13 @@
 import React, { useState, useCallback } from 'react';
+import { BlurView } from 'expo-blur';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  SafeAreaView, RefreshControl, StyleSheet,
+  RefreshControl, StyleSheet, Modal, TouchableWithoutFeedback,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../ThemeContext';
 import { getBats, getSessions, getOverallStats } from '../storage/database';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 // ── Squircle icon component (Apple-style coloured icon tile) ─────────────────
 function IconTile({ emoji, bg, size = 52 }) {
@@ -19,10 +21,29 @@ function IconTile({ emoji, bg, size = 52 }) {
   );
 }
 
-// ── Gradient-style card background using layered Views ───────────────────────
+// ── Glass/Gradient card — uses BlurView in clear mode ────────────────────────
 function GradientCard({ children, style, onPress }) {
-  const { theme } = useTheme();
+  const { theme, mode } = useTheme();
   const Inner = onPress ? TouchableOpacity : View;
+
+  if (mode === 'clear') {
+    return (
+      <Inner activeOpacity={0.75} onPress={onPress}
+        style={[{ borderRadius: 20, overflow: 'hidden', borderWidth: 1,
+                  borderColor: theme.border }, style]}>
+        <BlurView intensity={60} tint="dark"
+          style={{ flex: 1 }}>
+          <View style={{ flex: 1, backgroundColor: theme.bgCard }}>
+            {/* Top highlight shimmer */}
+            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1,
+                           backgroundColor: 'rgba(255,255,255,0.25)' }} />
+            {children}
+          </View>
+        </BlurView>
+      </Inner>
+    );
+  }
+
   return (
     <Inner activeOpacity={0.75} onPress={onPress}
       style={[{
@@ -32,11 +53,8 @@ function GradientCard({ children, style, onPress }) {
         borderColor: theme.border,
         overflow: 'hidden',
       }, style]}>
-      {/* Subtle top highlight for glass feel */}
-      <View style={{
-        position: 'absolute', top: 0, left: 0, right: 0, height: 1,
-        backgroundColor: theme.borderLight, opacity: 0.6,
-      }} />
+      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1,
+                     backgroundColor: theme.borderLight, opacity: 0.6 }} />
       {children}
     </Inner>
   );
@@ -120,53 +138,7 @@ export default function HomeScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* Settings panel */}
-        {showSettings && (
-          <View style={{
-            marginTop: 16, backgroundColor: 'rgba(0,0,0,0.25)',
-            borderRadius: 16, padding: 16,
-            borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
-          }}>
-            <Text style={[S.sectionLabel, { color: 'rgba(255,255,255,0.5)' }]}>THEME</Text>
-            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
-              {[
-                { key: 'light', label: 'Light', icon: '☀️' },
-                { key: 'dark',  label: 'Dark',  icon: '🌙' },
-                { key: 'system',label: 'Auto',  icon: '📱' },
-              ].map(t => (
-                <TouchableOpacity key={t.key} onPress={() => setMode(t.key)}
-                  style={{
-                    flex: 1, borderRadius: 12, paddingVertical: 10, alignItems: 'center',
-                    backgroundColor: mode === t.key ? theme.accent : 'rgba(255,255,255,0.08)',
-                    borderWidth: 1,
-                    borderColor: mode === t.key ? theme.accent : 'rgba(255,255,255,0.12)',
-                  }}>
-                  <Text style={{ fontSize: 16 }}>{t.icon}</Text>
-                  <Text style={{ color: '#fff', fontSize: F.xs, fontWeight: '700', marginTop: 4 }}>{t.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <Text style={[S.sectionLabel, { color: 'rgba(255,255,255,0.5)' }]}>TEXT SIZE</Text>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              {[
-                { key: 0.85, label: 'A', size: 14 },
-                { key: 1.0,  label: 'A', size: 18 },
-                { key: 1.15, label: 'A', size: 22 },
-                { key: 1.3,  label: 'A', size: 26 },
-              ].map(f => (
-                <TouchableOpacity key={f.key} onPress={() => setFontScale(f.key)}
-                  style={{
-                    flex: 1, borderRadius: 12, paddingVertical: 10, alignItems: 'center',
-                    backgroundColor: fontScale === f.key ? theme.accent : 'rgba(255,255,255,0.08)',
-                    borderWidth: 1,
-                    borderColor: fontScale === f.key ? theme.accent : 'rgba(255,255,255,0.12)',
-                  }}>
-                  <Text style={{ color: '#fff', fontSize: f.size, fontWeight: '800' }}>{f.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        )}
+{/* Settings modal is rendered at root level below */}
       </View>
 
       <ScrollView
@@ -409,6 +381,92 @@ export default function HomeScreen({ navigation }) {
         </Text>
 
       </ScrollView>
+      {/* Settings Modal — full-screen overlay, not inline */}
+      <Modal
+        visible={showSettings}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowSettings(false)}>
+        <TouchableWithoutFeedback onPress={() => setShowSettings(false)}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',
+                         justifyContent: 'flex-end' }}>
+            <TouchableWithoutFeedback>
+              <View style={{
+                backgroundColor: theme.bgCard,
+                borderTopLeftRadius: 24, borderTopRightRadius: 24,
+                padding: 24, paddingBottom: 40,
+                borderWidth: 1, borderColor: theme.border,
+              }}>
+                {/* Drag indicator */}
+                <View style={{ width: 40, height: 4, borderRadius: 2,
+                               backgroundColor: theme.border, alignSelf: 'center',
+                               marginBottom: 20 }} />
+
+                <Text style={{ color: theme.text, fontSize: 18, fontWeight: '800',
+                               marginBottom: 20 }}>Settings</Text>
+
+                {/* Theme selector */}
+                <Text style={{ color: theme.textMuted, fontSize: 11, fontWeight: '700',
+                               letterSpacing: 1, marginBottom: 12 }}>THEME</Text>
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 24 }}>
+                  {[
+                    { key: 'light',  label: 'Light', icon: '☀️' },
+                    { key: 'dark',   label: 'Dark',  icon: '🌙' },
+                    { key: 'system', label: 'Auto',  icon: '📱' },
+                  ].map(t => (
+                    <TouchableOpacity key={t.key} onPress={() => setMode(t.key)}
+                      style={{
+                        flex: 1, borderRadius: 14, paddingVertical: 12,
+                        alignItems: 'center',
+                        backgroundColor: mode === t.key ? theme.accentDim : theme.bgInput,
+                        borderWidth: 1.5,
+                        borderColor: mode === t.key ? theme.accent : theme.border,
+                      }}>
+                      <Text style={{ fontSize: 20 }}>{t.icon}</Text>
+                      <Text style={{ color: mode === t.key ? theme.accent : theme.textSub,
+                                     fontSize: 11, fontWeight: '700', marginTop: 6 }}>
+                        {t.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {/* Text size selector */}
+                <Text style={{ color: theme.textMuted, fontSize: 11, fontWeight: '700',
+                               letterSpacing: 1, marginBottom: 12 }}>TEXT SIZE</Text>
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 24 }}>
+                  {[
+                    { key: 0.85, label: 'A', size: 14 },
+                    { key: 1.0,  label: 'A', size: 18 },
+                    { key: 1.15, label: 'A', size: 22 },
+                    { key: 1.3,  label: 'A', size: 26 },
+                  ].map(f => (
+                    <TouchableOpacity key={f.key} onPress={() => setFontScale(f.key)}
+                      style={{
+                        flex: 1, borderRadius: 14, paddingVertical: 12,
+                        alignItems: 'center',
+                        backgroundColor: fontScale === f.key ? theme.accentDim : theme.bgInput,
+                        borderWidth: 1.5,
+                        borderColor: fontScale === f.key ? theme.accent : theme.border,
+                      }}>
+                      <Text style={{ color: fontScale === f.key ? theme.accent : theme.textSub,
+                                     fontSize: f.size, fontWeight: '800' }}>{f.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {/* Done button */}
+                <TouchableOpacity onPress={() => setShowSettings(false)}
+                  style={{ backgroundColor: theme.accent, borderRadius: 14,
+                           padding: 16, alignItems: 'center' }}>
+                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: '800' }}>Done</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
     </SafeAreaView>
   );
 }
