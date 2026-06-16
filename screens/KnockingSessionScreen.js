@@ -4,13 +4,26 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   Alert,
   Vibration,
 } from "react-native";
 import { Audio } from "expo-av";
+import { Asset } from 'expo-asset';
+
+// ── TensorFlow.js — loaded dynamically so app works without it ──────────
+// If packages aren't installed or device can't load the model,
+// the existing amplitude detection engine is used as fallback.
+let tf = null;
+let tfReady = false;
+try {
+  tf = require('@tensorflow/tfjs');
+  require('@tensorflow/tfjs-react-native');
+} catch (e) {
+  console.log('[KnockDetect] TF.js not available — using amplitude detection');
+}
 import { useTheme } from "../ThemeContext";
 import { NavButton } from "../components/NavBar";
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   saveSession,
   saveBat,
@@ -43,7 +56,7 @@ import {
 // the 13s mark fully ignored, zero false positives in silence.
 
 const POLL_MS = 15;
-const DEBOUNCE_MS = 250; // min gap between counted knocks
+const DEBOUNCE_MS = 400; // min gap between counted knocks — prevents resonance double-count
 const JUMP_DB = 12; // knock must be this far above baseline
 const FLOOR_DB = -22; // and at least this loud (absolute)
 const BASELINE_ALPHA = 0.25; // how fast background estimate adapts
@@ -80,6 +93,18 @@ export default function KnockingSessionScreen({ navigation, route }) {
   // Detection state
   const thresholdRef = useRef(DEFAULT_THRESHOLD);
   const baselineRef = useRef(RESET_FLOOR_DB); // adaptive background level (dB)
+
+  // ── TF.js model refs ──────────────────────────────────────────────────
+  const tfModelRef      = useRef(null);   // loaded TF.js model
+  const tfReadyRef      = useRef(false);  // model loaded and ready
+  const [mlReady, setMlReady] = useState(false);
+  const [mlStatus, setMlStatus] = useState('Loading model…');
+
+  // ── Audio buffer for mel spectrogram ──────────────────────────────────
+  // We accumulate 1 second of dB readings, then run inference
+  const audioBufferRef  = useRef([]);     // rolling 1s buffer of dB values
+  const BUFFER_SIZE     = Math.round(1000 / POLL_MS); // ~67 frames at 15ms
+  const inferringRef    = useRef(false); // lock: only one ML inference at a time
   const floorRef = useRef(FLOOR_DB); // absolute floor (dB), adjustable by calibration
   const loudFramesRef = useRef(0);
   const inKnockRef = useRef(false);
@@ -210,22 +235,38 @@ export default function KnockingSessionScreen({ navigation, route }) {
   // baseline AND loud enough in absolute terms (>= floor).
   // The baseline adapts to room noise and voice, so sustained talking
   // raises the baseline and can never produce the sharp jump a knock does.
-  const processLevel = useCallback((db) => {
+  const processLevel = useCallback(async (db) => {
     if (db === undefined || db === null || !isFinite(db)) return;
     const now = Date.now();
     const baseline = baselineRef.current;
     const floor = floorRef.current;
     const jump = db - baseline;
 
+    // Maintain rolling 1-second audio buffer for ML inference
+    audioBufferRef.current.push(db);
+    if (audioBufferRef.current.length > BUFFER_SIZE) {
+      audioBufferRef.current.shift();
+    }
+
     const isKnock = jump >= JUMP_DB && db >= floor;
 
     if (isKnock) {
       if (now - lastKnockRef.current > DEBOUNCE_MS) {
-        lastKnockRef.current = now;
-        knockCountRef.current += 1;
-        setKnockCount(knockCountRef.current);
-        Vibration.vibrate(15);
-        recordKnock();
+        // ── ML validation gate ────────────────────────────────────────────
+        // If model is loaded, confirm the amplitude spike is a real knock.
+        // If model is not loaded, trust the amplitude detection directly.
+        let confirmed = true;
+        if (tfReadyRef.current && audioBufferRef.current.length >= 10) {
+          confirmed = await runMLInference([...audioBufferRef.current]);
+        }
+
+        if (confirmed) {
+          lastKnockRef.current = now;
+          knockCountRef.current += 1;
+          setKnockCount(knockCountRef.current);
+          Vibration.vibrate(15);
+          recordKnock();
+        }
       }
       // Do NOT fold the spike into the baseline — keep background clean
     } else {
@@ -234,6 +275,105 @@ export default function KnockingSessionScreen({ navigation, route }) {
         BASELINE_ALPHA * db + (1 - BASELINE_ALPHA) * baseline;
     }
   }, []);
+
+  // ── Load TF.js model on mount ─────────────────────────────────────────
+  useEffect(() => {
+    loadModel();
+  }, []);
+
+  const loadModel = async () => {
+    if (!tf) {
+      setMlStatus('Amplitude detection active');
+      return;
+    }
+    try {
+      setMlStatus('Loading knock detection model…');
+      await tf.ready();
+
+      // Load model from bundled assets
+      const modelAsset   = Asset.fromModule(require('../assets/model/model.json'));
+      const weightsAsset = Asset.fromModule(require('../assets/model/weights.bin'));
+      await Promise.all([modelAsset.downloadAsync(), weightsAsset.downloadAsync()]);
+
+      const model = await tf.loadLayersModel(
+        `file://${modelAsset.localUri}`
+      );
+
+      tfModelRef.current  = model;
+      tfReadyRef.current  = true;
+      setMlReady(true);
+      setMlStatus('ML knock detection active ✓');
+      console.log('[KnockDetect] Model loaded successfully');
+    } catch (e) {
+      console.log('[KnockDetect] Model load failed, using amplitude detection:', e.message);
+      setMlStatus('Amplitude detection active');
+    }
+  };
+
+  // ── ML inference on 1-second audio buffer ─────────────────────────────
+  // Called when amplitude detection fires a candidate knock.
+  // Returns true if model confirms it's a knock, false to reject it.
+  //
+  // Class mapping from metadata.json (10-class model):
+  //   0: Background Noise          → KNOCK (knocking in quiet room)
+  //   1: Edge Knocking             → KNOCK
+  //   2: Knocking + background     → KNOCK
+  //   3: Knocking + talking        → KNOCK
+  //   4: Sample background noise   → IGNORE
+  //   5: Shouting                  → IGNORE (no knock, just voice)
+  //   6: Shouting and Knocking     → KNOCK (knock present despite shouting)
+  //   7: Sweet Spot Fast Knocking  → KNOCK
+  //   8: Sweet Spot Slow Knocking  → KNOCK
+  //   9: Toe Knocking              → KNOCK
+  const KNOCK_CLASSES   = new Set([0, 1, 2, 3, 6, 7, 8, 9]);
+  const IGNORE_CLASSES  = new Set([4, 5]); // pure noise/voice, no knock
+  const ML_CONFIDENCE   = 0.75; // raised from 0.65 — reduces false positives
+
+  const runMLInference = async (buffer) => {
+    if (!tfReadyRef.current || !tfModelRef.current) return true; // fallback: trust amplitude
+    if (inferringRef.current) return false; // another inference running — skip this spike
+    inferringRef.current = true;
+
+    try {
+      // Build a simplified spectrogram-like input from dB buffer
+      // The model expects [1, 43, 232, 1] — we tile our buffer to fit
+      const inputData = new Float32Array(43 * 232);
+
+      // Normalise dB values to 0-1 range (from -160 to 0 dBFS)
+      const normalised = buffer.map(db => Math.max(0, Math.min(1, (db + 160) / 160)));
+
+      // Tile across the spectrogram dimensions
+      for (let i = 0; i < 43; i++) {
+        for (let j = 0; j < 232; j++) {
+          const bufIdx = Math.floor((j / 232) * normalised.length);
+          inputData[i * 232 + j] = normalised[bufIdx] || 0;
+        }
+      }
+
+      const inputTensor = tf.tensor4d(inputData, [1, 43, 232, 1]);
+      const prediction  = tfModelRef.current.predict(inputTensor);
+      const probs       = await prediction.data();
+      inputTensor.dispose();
+      prediction.dispose();
+
+      // Find the highest-confidence class
+      let maxIdx = 0, maxProb = 0;
+      probs.forEach((p, i) => { if (p > maxProb) { maxProb = p; maxIdx = i; } });
+
+      console.log(`[ML] class=${maxIdx} (${{0:'BG Noise',1:'Edge',2:'BG+Knock',3:'Talk+Knock',4:'NOISE',5:'Shout',6:'Shout+Knock',7:'SS Fast',8:'SS Slow',9:'Toe'}[maxIdx]}) conf=${(maxProb*100).toFixed(0)}%`);
+
+      if (maxProb < ML_CONFIDENCE) return true; // not confident — trust amplitude
+      if (IGNORE_CLASSES.has(maxIdx)) return false; // definitely noise
+      const result = IGNORE_CLASSES.has(maxIdx) ? false : KNOCK_CLASSES.has(maxIdx);
+      inferringRef.current = false;
+      return result;
+
+    } catch (e) {
+      console.log('[ML] inference error:', e.message);
+      inferringRef.current = false;
+      return true; // on error, trust amplitude detection
+    }
+  };
 
   // ─── RECORDING ───────────────────────────────────────────
   const startRecording = async () => {
