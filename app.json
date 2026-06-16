@@ -2,7 +2,7 @@
   "expo": {
     "name": "Knockmate",
     "slug": "batknock",
-    "version": "1.1.1",
+    "version": "1.4.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -14,14 +14,11 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.batknock.app",
-      "buildNumber": "1",
+      "buildNumber": "3",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Knockmate uses the microphone to detect and count bat knocking sounds during preparation sessions.",
         "NSCameraUsageDescription": "Knockmate uses the camera to take photos of your bat.",
-        "UIBackgroundModes": [
-          "audio",
-          "audio"
-        ],
+        "UIBackgroundModes": ["audio", "audio"],
         "ITSAppUsesNonExemptEncryption": false,
         "NSUserNotificationUsageDescription": "Knockmate sends reminders when your bat is ready for the next preparation phase."
       }
@@ -32,7 +29,7 @@
         "backgroundColor": "#111b21"
       },
       "package": "com.batknock.app",
-      "versionCode": 3,
+      "versionCode": 5,
       "permissions": [
         "RECORD_AUDIO",
         "MODIFY_AUDIO_SETTINGS",
