@@ -94,6 +94,7 @@ function AppNavigator() {
           <Stack.Screen name="SeasonGuide" component={SeasonGuideScreen} />
           <Stack.Screen name="Profile" component={ProfileScreen} />
           <Stack.Screen name="PrepTimer" component={PrepTimerScreen} />
+          <Stack.Screen name="Guide" component={BatCareScreen} />
         </Stack.Navigator>
       </View>
     </NavigationContainer>

@@ -231,7 +231,7 @@ export default function HomeScreen({ navigation }) {
 
         {/* ── CUSTOMISABLE SHORTCUTS ──────────────────────────────────────── */}
         <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
-          <Text style={[S.sectionLabel, { marginBottom: 12 }]}>MY SHORTCUTS</Text>
+          <Text style={S.sectionLabel}>MY SHORTCUTS</Text>
           <View style={{ flexDirection: 'row', gap: 10 }}>
             {shortcuts.map((shortcutId, idx) => {
               const item = ALL_SHORTCUTS.find(s => s.id === shortcutId);

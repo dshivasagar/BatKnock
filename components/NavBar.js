@@ -6,7 +6,6 @@
  */
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
-import { BlurView } from 'expo-blur';
 import { useTheme, fontFamily } from '../ThemeContext';
 import AppText from './AppText';
 
@@ -20,29 +19,18 @@ function ChevronLeft({ color, size = 16 }) {
         width: t, height: h,
         backgroundColor: color,
         borderRadius: t / 2,
-        transform: [{ rotate: '-45deg' }, { translateX: size * 0.06 }],
+        transform: [{ rotate: '45deg' }, { translateX: size * 0.06 }],
         position: 'absolute', top: size * 0.05,
       }} />
       <View style={{
         width: t, height: h,
         backgroundColor: color,
         borderRadius: t / 2,
-        transform: [{ rotate: '45deg' }, { translateX: size * 0.06 }],
+        transform: [{ rotate: '-45deg' }, { translateX: size * 0.06 }],
         position: 'absolute', bottom: size * 0.05,
       }} />
     </View>
   );
-
-  if (mode === 'clear') {
-    return (
-      <BlurView intensity={70} tint="dark"
-        style={{ borderBottomWidth: 1, borderBottomColor: theme.border }}>
-        {navContent}
-      </BlurView>
-    );
-  }
-
-  return navContent;
 }
 
 // House icon: roof triangle + box body
@@ -70,15 +58,6 @@ function HouseIcon({ color, size = 16 }) {
       }} />
     </View>
   );
-
-  if (mode === 'clear') {
-    return (
-      <BlurView intensity={70} tint="dark"
-        style={{ borderBottomWidth: 1, borderBottomColor: theme.border }}>
-        {navContent}
-      </BlurView>
-    );
-  }
 
   return navContent;
 }
@@ -144,15 +123,6 @@ export default function NavBar({ navigation, title, subtitle, showHome = false, 
       )}
     </View>
   );
-
-  if (mode === 'clear') {
-    return (
-      <BlurView intensity={70} tint="dark"
-        style={{ borderBottomWidth: 1, borderBottomColor: theme.border }}>
-        {navContent}
-      </BlurView>
-    );
-  }
 
   return navContent;
 }
