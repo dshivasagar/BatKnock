@@ -6,6 +6,9 @@ import { StatusBar, Text, View, ActivityIndicator } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider, useTheme } from './ThemeContext';
 import HomeScreen from './screens/HomeScreen';
+import SeasonGuideScreen from './screens/SeasonGuideScreen';
+import ProfileScreen from './screens/ProfileScreen';
+import PrepTimerScreen from './screens/PrepTimerScreen';
 import BatListScreen from './screens/BatListScreen';
 import CreateBatScreen from './screens/CreateBatScreen';
 import BatProfileScreen from './screens/BatProfileScreen';
@@ -25,7 +28,7 @@ function MainTabs() {
     Home:   { emoji: '🏠', label: 'Home'   },
     Bats:   { emoji: '🏏', label: 'Bats'   },
     Trends: { emoji: '📈', label: 'Trends' },
-    Guide:  { emoji: '📚', label: 'Guide'  },
+
   };
   return (
     <Tab.Navigator
@@ -56,7 +59,6 @@ function MainTabs() {
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Bats" component={BatListScreen} />
       <Tab.Screen name="Trends" component={TrendsScreen} />
-      <Tab.Screen name="Guide" component={BatCareScreen} />
     </Tab.Navigator>
   );
 }
@@ -89,6 +91,9 @@ function AppNavigator() {
           <Stack.Screen name="Heatmap" component={HeatmapScreen} />
           <Stack.Screen name="ActivityLog" component={ActivityLogScreen} />
           <Stack.Screen name="MicTest" component={MicTestScreen} />
+          <Stack.Screen name="SeasonGuide" component={SeasonGuideScreen} />
+          <Stack.Screen name="Profile" component={ProfileScreen} />
+          <Stack.Screen name="PrepTimer" component={PrepTimerScreen} />
         </Stack.Navigator>
       </View>
     </NavigationContainer>

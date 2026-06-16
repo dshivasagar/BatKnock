@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "BatKnock",
+    "name": "Knockmate",
     "slug": "batknock",
-    "version": "1.3.0",
+    "version": "1.1.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -14,12 +14,16 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.batknock.app",
-      "buildNumber": "2",
+      "buildNumber": "1",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "BatKnock uses the microphone to detect and count bat knocking sounds during preparation sessions.",
-        "NSCameraUsageDescription": "BatKnock uses the camera to take photos of your bat.",
-        "UIBackgroundModes": ["audio", "audio"],
-        "ITSAppUsesNonExemptEncryption": false
+        "NSMicrophoneUsageDescription": "Knockmate uses the microphone to detect and count bat knocking sounds during preparation sessions.",
+        "NSCameraUsageDescription": "Knockmate uses the camera to take photos of your bat.",
+        "UIBackgroundModes": [
+          "audio",
+          "audio"
+        ],
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSUserNotificationUsageDescription": "Knockmate sends reminders when your bat is ready for the next preparation phase."
       }
     },
     "android": {
@@ -28,8 +32,14 @@
         "backgroundColor": "#111b21"
       },
       "package": "com.batknock.app",
-      "versionCode": 4,
-      "permissions": ["RECORD_AUDIO", "MODIFY_AUDIO_SETTINGS", "VIBRATE"]
+      "versionCode": 3,
+      "permissions": [
+        "RECORD_AUDIO",
+        "MODIFY_AUDIO_SETTINGS",
+        "VIBRATE",
+        "RECEIVE_BOOT_COMPLETED",
+        "SCHEDULE_EXACT_ALARM"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"

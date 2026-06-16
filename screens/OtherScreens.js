@@ -1,11 +1,12 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, SafeAreaView } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Audio } from 'expo-av';
 import { useTheme } from '../ThemeContext';
 import NavBar, { NavButton } from '../components/NavBar';
 import { getSessions } from '../storage/database';
 import AppText from '../components/AppText';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 // ─── ACTIVITY LOG ────────────────────────────────────────────
 export function ActivityLogScreen({ navigation }) {
@@ -112,6 +113,28 @@ export function BatCareScreen({ navigation }) {
       sections: [
         { title: 'SURFACE VS STRUCTURAL CRACKS', content: 'Surface cracks (hairline, on the face grain) are normal and do not affect performance. Structural cracks (running through the edge or down the splice) require professional repair or bat replacement.' },
         { title: 'REPAIRING SURFACE CRACKS', content: '1. Clean the crack with a dry toothbrush.\n2. Apply a small amount of bat repair adhesive or PVA into the crack.\n3. Clamp gently with a cloth and elastic band.\n4. Let cure for 12 hours.\n5. Sand lightly and re-oil.' },
+      ]
+    },
+    {
+      id: 'damage', icon: '⚠️', title: 'Common Causes of Bat Damage',
+      subtitle: 'Most damage is avoidable — know what to watch for.',
+      sections: [
+        { title: 'MISTIMED SHOTS', content: 'Edges, top-handle hits, and back-of-bat contact all transfer shock unevenly through the blade. The occasional mistime is normal — but a pattern of edges suggests technique issues that are also stressing the bat.' },
+        { title: 'HITTING STUMPS OR THE GROUND', content: 'Knocking the bat face against stumps to dislodge them, or repeatedly tapping the crease on hard or indoor surfaces, drives shock into the blade from an unnatural angle. Use the handle end for stumps, and tap lightly — or shadow-tap — on hard pitches.' },
+        { title: 'WEATHER AND BALL QUALITY', content: 'Playing in heavy rain saturates the willow and weakens fibres. Low-quality, overly hard balls — especially on a new bat — are far more likely to cause cracking or splitting than a well-worn ball.' },
+        { title: 'TRANSPORT AND STORAGE', content: 'An unprotected bat in a kit bag gets scratched and dented by spikes and other gear — always use a bat cover. Leaving a bat in a car boot exposes it to heat that dries and embrittles the willow, while cold or damp storage lets the blade absorb moisture.' },
+        { title: 'LENDING AND UPKEEP', content: 'Lending your bat means losing control over how it\'s treated. And skipping knocking-in or end-of-season oiling shortens the bat\'s working life regardless of how carefully it\'s used. At the first sign of a crack or loose handle, get it looked at before it worsens.' },
+      ]
+    },
+    {
+      id: 'willow', icon: '🪵', title: 'English vs Kashmir Willow',
+      subtitle: 'Different wood, different prep — know what your bat needs.',
+      sections: [
+        { title: 'KNOCKING TIME', content: 'English willow needs roughly 6-8 hours of knocking-in. It\'s softer and more fibrous, so the outer fibres need gradual, escalating compression to harden without cracking.\n\nKashmir willow needs only 2-4 hours. It\'s denser and often comes pre-pressed from the factory, so knocking is mainly targeted at the edges and toe rather than the whole face.' },
+        { title: 'WHY THE DIFFERENCE MATTERS', content: 'English willow\'s loose grain means an under-prepared bat can crack on the very first hard shot — knocking builds a protective hardened shell. Kashmir willow already has that shell; the goal is just rounding off the vulnerable edges and toe so a yorker doesn\'t chip them.' },
+        { title: 'DANGER AREAS', content: 'English willow: rushing the process causes bruising and deep dents across the face.\n\nKashmir willow: skipping edge and toe preparation leads to surface cracks or toe-splitting.' },
+        { title: 'TEMPERATURE & HUMIDITY', content: 'Both willow types knock in best at 18-24°C with 45-55% humidity. Hot, dry air dehydrates the wood and risks stress cracks; high humidity over-softens the fibres and leads to poor compression and permanent dents.\n\nNever knock in or store a bat in a car boot, garage, or direct sunlight. Keep it indoors at room temperature, and if the wood looks dry, apply a light coat of oil and let it dry horizontally for 24 hours before knocking.' },
+        { title: 'BALL PROGRESSION', content: 'Start knocking with an old, soft ball or a wooden mallet, then gradually move to a newer, harder ball over the course of your knocking sessions.' },
       ]
     },
   ];
@@ -243,7 +266,7 @@ export function MicTestScreen({ navigation }) {
                 <View style={{ height: '100%', width: `${level * 100}%`, backgroundColor: level > 0.6 ? theme.accent : level > 0.3 ? theme.blue : theme.textMuted, borderRadius: 6 }} />
               </View>
               <AppText style={{ color: theme.textMuted, fontSize: 11, marginTop: 6, textAlign: 'center' }}>
-                {knocks} knocks detected
+                {knocks} sounds detected
               </AppText>
             </View>
           )}
