@@ -15,7 +15,7 @@ export const MONTHS = [
 
 export const SEASON_DATA = {
   Asia: [
-    { country: 'India', start: 'October', end: 'May' },
+    { country: 'India', start: null, end: null }, // Year-round — cricket played in all seasons
     { country: 'Pakistan', start: 'October', end: 'May' },
     { country: 'Sri Lanka', start: 'January', end: 'September' },
     { country: 'Bangladesh', start: 'November', end: 'February' },

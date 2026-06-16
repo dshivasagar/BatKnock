@@ -62,12 +62,12 @@ export const THEMES = {
     bgHeader:     '#4899e8',   // lighter sky blue header
     border:       '#bfdbfe',   // blue-200 — soft border
     borderLight:  '#e0f0ff',   // barely-there dividers
-    text:         '#0f172a',   // near black
-    textSub:      '#334d70',   // dark blue-grey
-    textMuted:    '#5a7a9e',   // medium blue-grey
-    accent:       '#60a5fa',   // blue-400 — light sky blue (was blue-600)
+    text:         '#0f172a',   // near black — strong contrast
+    textSub:      '#1e3a5f',   // dark navy — still readable on white
+    textMuted:    '#2563eb',   // accent blue — two-tone: navy + blue
+    accent:       '#2563eb',   // blue-600 — strong enough to read on white
     accentDim:    '#dbeafe',   // blue-100 tint
-    accentText:   '#2563eb',   // blue-600 for text on light bg
+    accentText:   '#1d4ed8',   // blue-700 for text emphasis
     red:          '#dc2626',
     blue:         '#60a5fa',   // light sky blue
     orange:       '#d97706',
@@ -80,7 +80,7 @@ export const THEMES = {
 export function ThemeProvider({ children, fontsLoaded = false }) {
   const systemScheme = useColorScheme();
   const [mode, setMode] = useState('dark');
-  const [fontScale, setFontScale] = useState(1.0);
+  const [fontScale, setFontScale] = useState(1.15);
   const [theme, setTheme] = useState(THEMES.dark);
 
   useEffect(() => {

@@ -1,10 +1,11 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, SafeAreaView, Alert } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../ThemeContext';
 import NavBar, { NavButton } from '../components/NavBar';
 import { getBats, deleteBat } from '../storage/database';
 import AppText from '../components/AppText';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function BatListScreen({ navigation }) {
   const { theme } = useTheme();
@@ -54,10 +55,10 @@ export default function BatListScreen({ navigation }) {
                 </View>
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <AppText style={{ color: theme.text, fontSize: 16, fontWeight: '700' }}>{bat.name}</AppText>
+                    <AppText style={{ color: theme.text, fontSize: 17, fontWeight: '800' }}>{bat.name}</AppText>
                     <AppText style={{ color: theme.accent, fontSize: 16, fontWeight: '800' }}>{bat.total_knocks || 0}</AppText>
                   </View>
-                  <AppText style={{ color: theme.textSub, fontSize: 13, marginTop: 2 }}>{bat.brand}{bat.willow_type ? ` · ${bat.willow_type}` : ''}</AppText>
+                  <AppText style={{ color: theme.textSub, fontSize: 14, marginTop: 3 }}>{bat.brand}{bat.willow_type ? ` · ${bat.willow_type}` : ''}</AppText>
                   <View style={{ height: 3, backgroundColor: theme.border, borderRadius: 2, marginTop: 8 }}>
                     <View style={{ height: 3, width: `${pct}%`, backgroundColor: theme.accent, borderRadius: 2 }} />
                   </View>

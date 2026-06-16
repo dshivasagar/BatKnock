@@ -74,7 +74,7 @@ export default function HomeScreen({ navigation }) {
   const [editingSlot, setEditingSlot] = useState(0);
   const [sessionsExpanded, setSessionsExpanded] = useState(false);
   const [showThemeModal, setShowThemeModal] = useState(false);
-  const [showLinksSection, setShowLinksSection] = useState(false);
+  const [showLinksSection, setShowLinksSection] = useState(true);
 
   const loadData = async () => {
     const s = await getOverallStats();
@@ -146,7 +146,7 @@ export default function HomeScreen({ navigation }) {
       {/* ── HEADER ──────────────────────────────────────────────────────── */}
       <View style={{
         backgroundColor: theme.bgHeader,
-        paddingHorizontal: 20, paddingTop: 14, paddingBottom: 14,
+        paddingHorizontal: 20, paddingTop: 12, paddingBottom: 12,
         borderBottomWidth: 1, borderBottomColor: theme.border,
       }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -180,7 +180,7 @@ export default function HomeScreen({ navigation }) {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingTop: 16, paddingBottom: 32 }}
+        contentContainerStyle={{ paddingTop: 24, paddingBottom: 40 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />}
       >
 
