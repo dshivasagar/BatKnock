@@ -1,15 +1,16 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, SafeAreaView, Dimensions } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../ThemeContext';
 import NavBar from '../components/NavBar';
 import { getSessions, getBats } from '../storage/database';
 import AppText from '../components/AppText';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const W = Dimensions.get('window').width;
 
 export default function TrendsScreen({ navigation }) {
-  const { theme } = useTheme();
+  const { theme, fs } = useTheme();
   const [sessions, setSessions] = useState([]);
   const [bats, setBats] = useState([]);
   const [expandedBats, setExpandedBats] = useState({});
@@ -51,10 +52,10 @@ export default function TrendsScreen({ navigation }) {
         onPress={onToggle}
         style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 }}>
         <View>
-          <AppText style={{ color: theme.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 0.5 }}>{title}</AppText>
-          {!expanded && <AppText style={{ color: theme.textSub, fontSize: 13, marginTop: 2 }}>{summary}</AppText>}
+          <AppText style={{ color: theme.textMuted, fontSize: fs(11), fontWeight: '700', letterSpacing: 0.5 }}>{title}</AppText>
+          {!expanded && <AppText style={{ color: theme.textSub, fontSize: fs(13), marginTop: 2 }}>{summary}</AppText>}
         </View>
-        <AppText style={{ color: theme.textMuted, fontSize: 14 }}>{expanded ? '▲' : '▼'}</AppText>
+        <AppText style={{ color: theme.textMuted, fontSize: fs(14) }}>{expanded ? '▲' : '▼'}</AppText>
       </TouchableOpacity>
       {expanded && (
         <View style={{ paddingHorizontal: 16, paddingBottom: 16 }}>
@@ -81,9 +82,9 @@ export default function TrendsScreen({ navigation }) {
             { label: 'Bats Tracked', value: bats.length, color: theme.orange },
           ].map(card => (
             <View key={card.label} style={{ width: (W - 42) / 2, backgroundColor: theme.bgCard, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: theme.border }}>
-              <AppText style={{ color: theme.textSub, fontSize: 12, marginBottom: 6 }}>{card.label}</AppText>
-              <AppText style={{ color: theme.text, fontSize: 22, fontWeight: '800' }}>{card.value}</AppText>
-              {card.sub && <AppText style={{ color: theme.textSub, fontSize: 11, marginTop: 2 }}>{card.sub}</AppText>}
+              <AppText style={{ color: theme.textSub, fontSize: fs(12), marginBottom: 6 }}>{card.label}</AppText>
+              <AppText style={{ color: theme.text, fontSize: fs(22), fontWeight: '800' }}>{card.value}</AppText>
+              {card.sub && <AppText style={{ color: theme.textSub, fontSize: fs(11), marginTop: 2 }}>{card.sub}</AppText>}
             </View>
           ))}
         </View>
@@ -117,7 +118,7 @@ export default function TrendsScreen({ navigation }) {
           summary={sessions.length > 0 ? `${sessions.length} sessions recorded · Tap to expand` : 'No sessions yet'}
         >
           {sessions.length === 0 ? (
-            <AppText style={{ color: theme.textMuted, fontSize: 13, textAlign: 'center', padding: 20 }}>No sessions yet</AppText>
+            <AppText style={{ color: theme.textMuted, fontSize: fs(13), textAlign: 'center', padding: 20 }}>No sessions yet</AppText>
           ) : (
             <>
               <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: 80, gap: 4 }}>
@@ -129,13 +130,13 @@ export default function TrendsScreen({ navigation }) {
                   );
                 })}
               </View>
-              <AppText style={{ color: theme.textMuted, fontSize: 11, marginTop: 6 }}>Last {Math.min(sessions.length, 20)} sessions</AppText>
+              <AppText style={{ color: theme.textMuted, fontSize: fs(11), marginTop: 6 }}>Last {Math.min(sessions.length, 20)} sessions</AppText>
             </>
           )}
         </CollapsibleChart>
 
         {/* Per Bat */}
-        <AppText style={{ color: theme.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginBottom: 10 }}>PER BAT</AppText>
+        <AppText style={{ color: theme.textMuted, fontSize: fs(11), fontWeight: '700', letterSpacing: 0.5, marginBottom: 10 }}>PER BAT</AppText>
         {bats.map(bat => {
           const batSessions = sessions.filter(s => s.bat_id === bat.id);
           const batKnocks = batSessions.reduce((sum, s) => sum + (s.knock_count || 0), 0);
@@ -147,33 +148,33 @@ export default function TrendsScreen({ navigation }) {
             <View key={bat.id} style={{ backgroundColor: theme.bgCard, borderRadius: 16, marginBottom: 10, borderWidth: 1, borderColor: theme.border, overflow: 'hidden' }}>
               <View style={{ padding: 16 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <AppText style={{ color: theme.text, fontSize: 15, fontWeight: '700' }}>{bat.name}</AppText>
-                  <AppText style={{ color: theme.accent, fontSize: 13, fontWeight: '700' }}>{pct.toFixed(0)}% ready</AppText>
+                  <AppText style={{ color: theme.text, fontSize: fs(15), fontWeight: '700' }}>{bat.name}</AppText>
+                  <AppText style={{ color: theme.accent, fontSize: fs(13), fontWeight: '700' }}>{pct.toFixed(0)}% ready</AppText>
                 </View>
                 <View style={{ height: 4, backgroundColor: theme.border, borderRadius: 2, marginBottom: 10 }}>
                   <View style={{ height: 4, width: `${pct}%`, backgroundColor: theme.accent, borderRadius: 2 }} />
                 </View>
                 <View style={{ flexDirection: 'row', gap: 16 }}>
-                  <AppText style={{ color: theme.textSub, fontSize: 12 }}>{batKnocks} knocks</AppText>
-                  <AppText style={{ color: theme.textSub, fontSize: 12 }}>{batSessions.length} sessions</AppText>
-                  <AppText style={{ color: theme.textSub, fontSize: 12 }}>{(batTime / 3600).toFixed(1)} hrs</AppText>
-                  <AppText style={{ color: theme.textSub, fontSize: 12 }}>avg {avgPerSession}/session</AppText>
+                  <AppText style={{ color: theme.textSub, fontSize: fs(12) }}>{batKnocks} knocks</AppText>
+                  <AppText style={{ color: theme.textSub, fontSize: fs(12) }}>{batSessions.length} sessions</AppText>
+                  <AppText style={{ color: theme.textSub, fontSize: fs(12) }}>{(batTime / 3600).toFixed(1)} hrs</AppText>
+                  <AppText style={{ color: theme.textSub, fontSize: fs(12) }}>avg {avgPerSession}/session</AppText>
                 </View>
               </View>
               <TouchableOpacity
                 style={{ borderTopWidth: 1, borderTopColor: theme.borderLight, padding: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
                 onPress={() => toggleBat(bat.id)}>
-                <AppText style={{ color: theme.textSub, fontSize: 13 }}>{isExpanded ? '▲ Hide' : '▼ Show'} session history</AppText>
+                <AppText style={{ color: theme.textSub, fontSize: fs(13) }}>{isExpanded ? '▲ Hide' : '▼ Show'} session history</AppText>
               </TouchableOpacity>
               {isExpanded && batSessions.map(s => (
                 <View key={s.id} style={{ borderTopWidth: 1, borderTopColor: theme.borderLight, paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', justifyContent: 'space-between' }}>
                   <View>
-                    <AppText style={{ color: theme.text, fontSize: 13, fontWeight: '600' }}>
+                    <AppText style={{ color: theme.text, fontSize: fs(13), fontWeight: '600' }}>
                       {new Date(s.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </AppText>
-                    <AppText style={{ color: theme.textSub, fontSize: 12 }}>{Math.round((s.duration_seconds || 0) / 60)}m session</AppText>
+                    <AppText style={{ color: theme.textSub, fontSize: fs(12) }}>{Math.round((s.duration_seconds || 0) / 60)}m session</AppText>
                   </View>
-                  <AppText style={{ color: theme.accent, fontSize: 16, fontWeight: '800' }}>{s.knock_count}</AppText>
+                  <AppText style={{ color: theme.accent, fontSize: fs(16), fontWeight: '800' }}>{s.knock_count}</AppText>
                 </View>
               ))}
             </View>

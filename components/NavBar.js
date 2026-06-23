@@ -63,7 +63,7 @@ function HouseIcon({ color, size = 16 }) {
 }
 
 export function NavButton({ onPress, type = 'back', accent, children, style }) {
-  const { theme } = useTheme();
+  const { theme, fs } = useTheme();
   const bg     = accent ? theme.accent  : theme.bgCard;
   const border = accent ? theme.accent  : theme.border;
   const color  = accent ? '#000'        : theme.text;

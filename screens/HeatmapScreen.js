@@ -1,32 +1,30 @@
 /**
- * HeatmapScreen.js — BatKnock v1.5.0
+ * HeatmapScreen.js — BatKnock v1.8.0
  *
- * FIXES from v1.4:
- *  1. Edit mode: removed legend (was covering corner handles)
- *  2. Edit mode: pinch-to-zoom on photo for precise handle placement
- *  3. Edit mode: full-screen photo, no scroll, handles float on top
- *  4. Edit mode: no zone ratio restrictions — user places dividers freely
- *  5. View mode: heatmap now correctly clips to quadrilateral (not rectangle)
- *     — grid x coords interpolated per-row across the tapered blade shape
- *  6. View mode: zone selector added directly on screen (no need to go back)
+ * DEFINITIVE FIX for zone-boundary coordinate mismatch:
+ *
+ * Root cause of all previous failures:
+ *   The edit container was EDIT_PHOTO_HEIGHT (< PHOTO_HEIGHT). With
+ *   resizeMode="cover", React Native crops the top and bottom of the photo
+ *   to fill the shorter container. The default corner handles at y=0.04
+ *   and y=0.93 ended up OUTSIDE the visible crop window — invisible and
+ *   unreachable. Any coordinate saved was wrong relative to view mode.
+ *
+ * Fix: edit mode uses the SAME PHOTO_HEIGHT as view mode. No crop, no
+ * coordinate mismatch. The photo is taller than the screen so a ScrollView
+ * is needed — the scroll conflict is resolved using setNativeProps(), which
+ * disables the ScrollView SYNCHRONOUSLY on the native thread the instant a
+ * handle is touched, with zero React re-render delay.
  */
-
 import React, { useState, useCallback, useRef } from 'react';
-import {
-  View, Text, TouchableOpacity, SafeAreaView,
-  Image, Dimensions, PanResponder, ScrollView,
-  Animated,
-} from 'react-native';
-import Svg, { Polygon, Defs, ClipPath, Rect, G, Line } from 'react-native-svg';
+import { View, ScrollView, TouchableOpacity, Dimensions, Image, PanResponder } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Polygon, Line, Defs, ClipPath, Rect, LinearGradient, Stop } from 'react-native-svg';
 import { useTheme } from '../ThemeContext';
 import NavBar from '../components/NavBar';
-import { getBatPoints, getBatById, saveBat } from '../storage/database';
-
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
-const PHOTO_W = SCREEN_W - 32;
-const PHOTO_H = PHOTO_W * 2.2;
-const HANDLE  = 30;
+import { getBatPoints, saveBat, getBatById } from '../storage/database';
+import AppText from '../components/AppText';
 
 const ZONE_LABELS = {
   'sweet-spot': 'Sweet Spot',
@@ -35,376 +33,314 @@ const ZONE_LABELS = {
   'top-edge':   'Top Edge',
 };
 
-const ZONE_LIST = ['sweet-spot', 'edge', 'top-edge', 'toe'];
-
-// Zone knock allocations (must sum to 1.0)
-// sweet-spot: 70%, edge: 20%, toe: 10%, top-edge: uses same as sweet-spot weighting
-const ZONE_ALLOC = {
-  'sweet-spot': 0.70,
-  'edge':       0.20,
-  'toe':        0.10,
-  'top-edge':   0.00, // top-edge shares sweet-spot allocation in readiness calc
+const DEFAULT_POINTS = {
+  topLeft:  { x: 0.30, y: 0.04 },
+  topRight: { x: 0.70, y: 0.04 },
+  botRight: { x: 0.72, y: 0.93 },
+  botLeft:  { x: 0.28, y: 0.93 },
+  topEdgeDivider: 0.18,
+  toeDivider:     0.78,
 };
 
-const DEFAULT_PTS = {
-  tl: { x: 0.28, y: 0.22 },
-  tr: { x: 0.72, y: 0.22 },
-  bl: { x: 0.20, y: 0.92 },
-  br: { x: 0.80, y: 0.92 },
-  topEdgeY:   0.38,
-  sweetSpotY: 0.82,
-};
+const BLADE_ASPECT_RATIO = 2.6;
 
-// ── Colour scale blue→cyan→green→yellow→orange→red ───────────────────────────
-function heatColour(intensity) {
-  const stops = [
-    { t: 0.00, r: 21,  g: 101, b: 192 },
-    { t: 0.20, r: 2,   g: 136, b: 209 },
-    { t: 0.40, r: 38,  g: 198, b: 218 },
-    { t: 0.55, r: 102, g: 187, b: 106 },
-    { t: 0.70, r: 255, g: 238, b: 88  },
-    { t: 0.85, r: 255, g: 167, b: 38  },
-    { t: 1.00, r: 239, g: 83,  b: 80  },
-  ];
-  const i = Math.max(0, Math.min(1, intensity));
-  let lo = stops[0], hi = stops[stops.length - 1];
-  for (let j = 0; j < stops.length - 1; j++) {
-    if (i >= stops[j].t && i <= stops[j+1].t) { lo = stops[j]; hi = stops[j+1]; break; }
-  }
-  const f = hi.t === lo.t ? 0 : (i - lo.t) / (hi.t - lo.t);
-  return `rgb(${Math.round(lo.r+(hi.r-lo.r)*f)},${Math.round(lo.g+(hi.g-lo.g)*f)},${Math.round(lo.b+(hi.b-lo.b)*f)})`;
-}
-
-function gaussian(x, y, cx, cy, sx, sy) {
-  return Math.exp(-(((x-cx)/sx)**2+((y-cy)/sy)**2)/2);
-}
-
-function buildGrid(cols, rows, progress) {
-  const cx=(cols-1)/2, cy=(rows-1)/2, sx=cols*0.28, sy=rows*0.32;
-  return Array.from({length:rows},(_,row)=>
-    Array.from({length:cols},(_,col)=>{
-      const ef=(col/(cols-1)<0.18||col/(cols-1)>0.82)?0.55:1.0;
-      return Math.max(0,Math.min(1,0.04+progress*0.96*gaussian(col,row,cx,cy,sx,sy)*ef));
-    })
-  );
-}
-
-// Interpolate x on the left/right blade edge at a given y
-function lerpX(p1, p2, y) {
-  if (p2.y===p1.y) return p1.x;
-  return p1.x+(p2.x-p1.x)*(y-p1.y)/(p2.y-p1.y);
-}
-
-// ── Draggable corner handle ───────────────────────────────────────────────────
-function DragHandle({ x, y, onMove, scale=1, onDragStart, onDragEnd }) {
-  const pan = useRef(PanResponder.create({
-    onStartShouldSetPanResponder: ()=>true,
-    onMoveShouldSetPanResponder: ()=>true,
-    onPanResponderGrant: ()=>{ onDragStart?.(); },
-    onPanResponderMove: (_,gs)=>{
-      onMove(
-        Math.max(0,Math.min(1, x+gs.dx/(PHOTO_W*scale))),
-        Math.max(0,Math.min(1, y+gs.dy/(PHOTO_H*scale))),
-      );
-    },
-    onPanResponderRelease: ()=>{ onDragEnd?.(); },
-    onPanResponderTerminate: ()=>{ onDragEnd?.(); },
-  })).current;
-  return (
-    <View style={{
-      position:'absolute',
-      left: x*PHOTO_W*scale - HANDLE/2,
-      top:  y*PHOTO_H*scale - HANDLE/2,
-      width:HANDLE, height:HANDLE, borderRadius:HANDLE/2,
-      backgroundColor:'rgba(255,255,255,0.95)',
-      borderWidth:2.5, borderColor:'#2196F3',
-      alignItems:'center', justifyContent:'center', zIndex:20,
-    }} {...pan.panHandlers}>
-      <Text style={{color:'#2196F3',fontSize:10,fontWeight:'900'}}>✛</Text>
-    </View>
-  );
-}
-
-// ── Horizontal zone divider (drags vertically, spans blade width) ─────────────
-function ZoneDivider({ yRatio, leftXpx, rightXpx, color, label, onMove, scale=1, onDragStart, onDragEnd }) {
-  const pan = useRef(PanResponder.create({
-    onStartShouldSetPanResponder:()=>true,
-    onMoveShouldSetPanResponder:()=>true,
-    onPanResponderGrant:()=>{ onDragStart?.(); },
-    onPanResponderMove:(_,gs)=>{
-      onMove(Math.max(0.02,Math.min(0.98, yRatio+gs.dy/(PHOTO_H*scale))));
-    },
-    onPanResponderRelease:()=>{ onDragEnd?.(); },
-    onPanResponderTerminate:()=>{ onDragEnd?.(); },
-  })).current;
-  const yPx = yRatio*PHOTO_H*scale;
-  const midX = (leftXpx+rightXpx)/2;
-  return (
-    <>
-      <View style={{
-        position:'absolute', top:yPx, left:leftXpx,
-        width:rightXpx-leftXpx, height:2,
-        backgroundColor:color, opacity:0.9, zIndex:8,
-      }}/>
-      <View style={{
-        position:'absolute',
-        top:yPx-15, left:midX-45,
-        width:90, height:30, borderRadius:15,
-        backgroundColor:color,
-        alignItems:'center', justifyContent:'center', zIndex:20,
-      }} {...pan.panHandlers}>
-        <Text style={{color:'#fff',fontSize:11,fontWeight:'700'}}>⠿ {label}</Text>
-      </View>
-    </>
-  );
+function heatColour(pct) {
+  if (pct >= 100) return '#e53935';
+  if (pct >= 80)  return '#fb8c00';
+  if (pct >= 50)  return '#fdd835';
+  if (pct > 0)    return '#7cb342';
+  return '#1e88e5';
 }
 
 export default function HeatmapScreen({ navigation, route }) {
-  const { theme }     = useTheme();
-  const bat           = route.params?.bat;
-  const initZone      = route.params?.selectedZone || 'sweet-spot';
+  const { theme, fs } = useTheme();
+  const initialBat = route.params?.bat;
+  const [bat, setBat]               = useState(initialBat);
+  const [points, setPoints]         = useState([]);
+  const [editing, setEditing]       = useState(false);
+  const [editPoints, setEditPoints] = useState(null);
 
-  const [points,     setPoints]     = useState([]);
-  const [batData,    setBatData]    = useState(bat);
-  const [editMode,   setEditMode]   = useState(false);
-  const [selZone,    setSelZone]    = useState(initZone);
-  const [zoomScale,  setZoomScale]  = useState(1);
-  const [scrollEnabled, setScrollEnabled] = useState(true);
+  // Ref to the edit-mode ScrollView so we can disable scroll synchronously
+  // via setNativeProps (native thread — no React re-render delay).
+  const editScrollRef = useRef(null);
 
-  const [pts,      setPts]      = useState(bat?.heatmap_points ?? DEFAULT_PTS);
-  const [editPts,  setEditPts]  = useState(bat?.heatmap_points ?? DEFAULT_PTS);
+  const screenWidth  = Dimensions.get('window').width;
+  const photoWidth   = screenWidth;
+  // PHOTO_HEIGHT is the same in BOTH edit mode and view mode.
+  // This guarantees that normalized (0-1) coordinates saved in edit map to
+  // exactly the same visual positions in view. No crop, no offset math.
+  const PHOTO_HEIGHT = Math.round(photoWidth * BLADE_ASPECT_RATIO);
 
-  const upd = (key, val) => setEditPts(p=>({...p,[key]:val}));
+  useFocusEffect(useCallback(() => { loadData(); }, []));
 
-  useFocusEffect(useCallback(()=>{
-    if (bat?.id) {
-      getBatPoints(bat.id).then(p=>setPoints(p||[]));
-      getBatById(bat.id).then(b=>{
-        if(b){ setBatData(b); const hp=b.heatmap_points??DEFAULT_PTS; setPts(hp); setEditPts(hp); }
-      });
+  const loadData = async () => {
+    if (initialBat?.id) {
+      const updated = await getBatById(initialBat.id);
+      if (updated) setBat(updated);
+      const pts = await getBatPoints(initialBat.id);
+      setPoints(pts || []);
     }
-  },[]));
-
-  const getCount    = z => points.find(p=>p.zone===z)?.hit_count||0;
-  const totalTarget = batData?.target_knocks||5000;
-
-  // Each zone has its own target based on allocation
-  const zoneTarget  = z => Math.round(totalTarget * (ZONE_ALLOC[z] || 0.70));
-  const zonePct     = z => {
-    const t = zoneTarget(z);
-    if (t === 0) return 0;
-    return Math.min(getCount(z) / t, 1);
   };
 
-  // Overall bat readiness = weighted completion across all zones
-  const batReadiness = (() => {
-    const weights = { 'sweet-spot': 0.70, 'edge': 0.20, 'toe': 0.10 };
-    return Object.entries(weights).reduce((sum, [z, w]) => sum + zonePct(z) * w, 0);
-  })();
+  // Clamp all stored coordinates to 0-1 to fix any data corrupted by older
+  // buggy edit sessions.
+  const sanitise = (pts) => {
+    if (!pts) return { ...DEFAULT_POINTS };
+    const clampXY = (p, def) => ({
+      x: Math.max(0, Math.min(1, p?.x ?? def.x)),
+      y: Math.max(0, Math.min(1, p?.y ?? def.y)),
+    });
+    return {
+      topLeft:        clampXY(pts.topLeft,  DEFAULT_POINTS.topLeft),
+      topRight:       clampXY(pts.topRight, DEFAULT_POINTS.topRight),
+      botRight:       clampXY(pts.botRight, DEFAULT_POINTS.botRight),
+      botLeft:        clampXY(pts.botLeft,  DEFAULT_POINTS.botLeft),
+      topEdgeDivider: Math.max(0, Math.min(1, pts.topEdgeDivider ?? DEFAULT_POINTS.topEdgeDivider)),
+      toeDivider:     Math.max(0, Math.min(1, pts.toeDivider     ?? DEFAULT_POINTS.toeDivider)),
+    };
+  };
 
-  const selProg  = zonePct(selZone);
-  const selCount = getCount(selZone);
-  const selTarget = zoneTarget(selZone);
+  const zonePoints = sanitise({ ...DEFAULT_POINTS, ...(bat?.heatmap_points || {}) });
 
-  const readCol =
-    selProg>=1.0?'#43a047':selProg>=0.80?'#fb8c00':selProg>=0.50?'#fdd835':'#1565C0';
-  const readLbl =
-    selProg>=1.0?'✅ Zone Ready':selProg>=0.80?'🟠 Almost Ready':
-    selProg>=0.50?'🟡 Good Progress':'🔵 Needs Knocking';
-  const batReadCol =
-    batReadiness>=1.0?'#43a047':batReadiness>=0.80?'#fb8c00':
-    batReadiness>=0.50?'#fdd835':'#1565C0';
+  // ── Zone stats ───────────────────────────────────────────────────────────
+  const getCount    = (z) => points.find(p => p.zone === z)?.hit_count || 0;
+  const totalTarget = bat?.target_knocks || 5000;
+  const zoneTarget  = (z) => {
+    if (z === 'sweet-spot') return totalTarget * 0.70;
+    if (z === 'toe')        return totalTarget * 0.10;
+    return totalTarget * 0.20;
+  };
+  const zonePct      = (z) => Math.min((getCount(z) / zoneTarget(z)) * 100, 100);
+  const overallCount = ['sweet-spot', 'edge', 'toe', 'top-edge'].reduce((s, z) => s + getCount(z), 0);
+  const overallPct   = Math.min((overallCount / totalTarget) * 100, 100);
+  const readinessLabel =
+    overallPct >= 100 ? '✅ Bat Ready'         :
+    overallPct >= 80  ? '🟠 Almost Ready'      :
+    overallPct >= 50  ? '🟡 Good Progress'     :
+                        '🔵 Needs More Knocking';
+  const readinessColour = heatColour(overallPct);
 
-  const saveZones = async ()=>{
-    const updated={...batData,heatmap_points:editPts};
+  // ── Shared coordinate helper ─────────────────────────────────────────────
+  // Single toPx used by BOTH edit and view mode — always uses PHOTO_HEIGHT.
+  const toPx = (pt) => {
+    if (!pt || typeof pt.x !== 'number' || typeof pt.y !== 'number') return { x: 0, y: 0 };
+    return { x: pt.x * photoWidth, y: pt.y * PHOTO_HEIGHT };
+  };
+
+  const zonePolygon = (yTop, yBot) => {
+    const { topLeft: tl, topRight: tr, botLeft: bl, botRight: br } = zonePoints;
+    const lerp = (a, b, t) => a + (b - a) * t;
+    const lx  = lerp(tl.x, bl.x, yTop), lx2 = lerp(tl.x, bl.x, yBot);
+    const rx  = lerp(tr.x, br.x, yTop), rx2 = lerp(tr.x, br.x, yBot);
+    const ty  = lerp(tl.y, bl.y, yTop), by  = lerp(tl.y, bl.y, yBot);
+    const p1 = toPx({ x: lx,  y: ty }), p2 = toPx({ x: rx,  y: ty });
+    const p3 = toPx({ x: rx2, y: by }), p4 = toPx({ x: lx2, y: by });
+    return `${p1.x},${p1.y} ${p2.x},${p2.y} ${p3.x},${p3.y} ${p4.x},${p4.y}`;
+  };
+
+  const fullClipPolygon = () =>
+    [zonePoints.topLeft, zonePoints.topRight, zonePoints.botRight, zonePoints.botLeft]
+      .map(pt => { const p = toPx(pt); return `${p.x},${p.y}`; }).join(' ');
+
+  // ── Edit mode actions ────────────────────────────────────────────────────
+  const startEditing  = () => {
+    setEditPoints(sanitise({ ...DEFAULT_POINTS, ...(bat?.heatmap_points || {}) }));
+    setEditing(true);
+  };
+  const cancelEditing = () => { setEditing(false); setEditPoints(null); };
+  const resetPoints   = () => setEditPoints({ ...DEFAULT_POINTS });
+  const saveEditing   = async () => {
+    if (!bat?.id) return;
+    const safe    = sanitise(editPoints);
+    const updated = { ...bat, heatmap_points: safe };
     await saveBat(updated);
-    setBatData(updated); setPts(editPts); setEditMode(false);
+    setBat(updated);
+    setEditing(false);
+    setEditPoints(null);
   };
 
-  // ── Geometry from saved pts ───────────────────────────────────────────────
-  const s = 1; // scale=1 for view mode
-  const TL={x:pts.tl.x*PHOTO_W, y:pts.tl.y*PHOTO_H};
-  const TR={x:pts.tr.x*PHOTO_W, y:pts.tr.y*PHOTO_H};
-  const BL={x:pts.bl.x*PHOTO_W, y:pts.bl.y*PHOTO_H};
-  const BR={x:pts.br.x*PHOTO_W, y:pts.br.y*PHOTO_H};
+  // ── PanResponders ────────────────────────────────────────────────────────
+  // Scroll freeze: setNativeProps on the ScrollView ref is SYNCHRONOUS on
+  // the native thread — the scroll is disabled the exact moment the finger
+  // touches a handle, with no React re-render delay. This is what makes
+  // handles work cleanly inside a scrollable photo view.
+  const freezeScroll = () => editScrollRef.current?.setNativeProps({ scrollEnabled: false });
+  const thawScroll   = () => editScrollRef.current?.setNativeProps({ scrollEnabled: true });
 
-  const teYpx  = pts.topEdgeY  *PHOTO_H;
-  const ssYpx  = pts.sweetSpotY*PHOTO_H;
+  const makeCornerResponder = (key) => {
+    let start = { x: 0, y: 0 };
+    return PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder:  () => true,
+      onPanResponderGrant: () => {
+        freezeScroll();
+        setEditPoints(prev => {
+          if (prev?.[key]) start = { x: prev[key].x, y: prev[key].y };
+          return prev;
+        });
+      },
+      onPanResponderMove: (evt, gesture) => {
+        setEditPoints(prev => {
+          if (!prev) return prev;
+          const newX = Math.max(0, Math.min(1, start.x + gesture.dx / photoWidth));
+          const newY = Math.max(0, Math.min(1, start.y + gesture.dy / PHOTO_HEIGHT));
+          return { ...prev, [key]: { x: newX, y: newY } };
+        });
+      },
+      onPanResponderRelease:   thawScroll,
+      onPanResponderTerminate: thawScroll,
+    }).panHandlers;
+  };
 
-  // x coords at each zone boundary (interpolated on left/right edges)
-  const teL = lerpX(TL,BL,teYpx);  const teR = lerpX(TR,BR,teYpx);
-  const ssL = lerpX(TL,BL,ssYpx);  const ssR = lerpX(TR,BR,ssYpx);
+  const makeDividerResponder = (key) => {
+    let start = 0;
+    return PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder:  () => true,
+      onPanResponderGrant: () => {
+        freezeScroll();
+        setEditPoints(prev => { if (prev) start = prev[key]; return prev; });
+      },
+      onPanResponderMove: (evt, gesture) => {
+        setEditPoints(prev => {
+          if (!prev) return prev;
+          const newY = Math.max(0, Math.min(1, start + gesture.dy / PHOTO_HEIGHT));
+          return { ...prev, [key]: newY };
+        });
+      },
+      onPanResponderRelease:   thawScroll,
+      onPanResponderTerminate: thawScroll,
+    }).panHandlers;
+  };
 
-  const bladeW = Math.max(TR.x-TL.x, BR.x-BL.x);
-  const CELL   = Math.max(4, Math.floor(bladeW/14));
-  const COLS   = Math.floor(bladeW/CELL);
-
-  const teH  = teYpx-TL.y;
-  const ssH  = ssYpx-teYpx;
-  const toeH = BL.y-ssYpx;
-
-  const ssRows  = Math.max(2,Math.floor(ssH /CELL));
-  const toeRows = Math.max(2,Math.floor(toeH/CELL));
-  const teRows  = Math.max(2,Math.floor(teH /CELL));
-
-  const ssGrid  = buildGrid(COLS,ssRows,  (selZone==='sweet-spot'||selZone==='edge') ? selProg:0);
-  const toeGrid = buildGrid(COLS,toeRows, selZone==='toe'      ? selProg:0);
-  const teGrid  = buildGrid(COLS,teRows,  selZone==='top-edge' ? selProg:0);
-
-  // ── SVG clip polygons ─────────────────────────────────────────────────────
-  const bladePoly = `${TL.x},${TL.y} ${TR.x},${TR.y} ${BR.x},${BR.y} ${BL.x},${BL.y}`;
-  const tePoly    = `${TL.x},${TL.y} ${TR.x},${TR.y} ${teR},${teYpx} ${teL},${teYpx}`;
-  const ssPoly    = `${teL},${teYpx} ${teR},${teYpx} ${ssR},${ssYpx} ${ssL},${ssYpx}`;
-  const toePoly   = `${ssL},${ssYpx} ${ssR},${ssYpx} ${BR.x},${BR.y} ${BL.x},${BL.y}`;
-
-  const activePoly = selZone==='top-edge'?tePoly:selZone==='toe'?toePoly:ssPoly;
-  const activeGrid = selZone==='top-edge'?teGrid:selZone==='toe'?toeGrid:ssGrid;
-  const gridTopY   = selZone==='top-edge'?TL.y:selZone==='toe'?ssYpx:teYpx;
-  const gridH      = selZone==='top-edge'?teH:selZone==='toe'?toeH:ssH;
-  const gridRows   = selZone==='top-edge'?teRows:selZone==='toe'?toeRows:ssRows;
-  // Left-edge x at each grid row (tapered)
-  const gridTopL   = selZone==='top-edge'?TL.x:selZone==='toe'?ssL:teL;
-  const gridBotL   = selZone==='top-edge'?teL:selZone==='toe'?BL.x:ssL;
-
-  const hasBatPhoto = batData?.photo_uri;
+  const cornerRefs = {
+    topLeft:  useRef(makeCornerResponder('topLeft')).current,
+    topRight: useRef(makeCornerResponder('topRight')).current,
+    botLeft:  useRef(makeCornerResponder('botLeft')).current,
+    botRight: useRef(makeCornerResponder('botRight')).current,
+  };
+  const dividerRefs = {
+    topEdgeDivider: useRef(makeDividerResponder('topEdgeDivider')).current,
+    toeDivider:     useRef(makeDividerResponder('toeDivider')).current,
+  };
 
   // ── EDIT MODE ─────────────────────────────────────────────────────────────
-  if (editMode) {
-    const sc = zoomScale;
-    const eTL={x:editPts.tl.x*PHOTO_W*sc, y:editPts.tl.y*PHOTO_H*sc};
-    const eTR={x:editPts.tr.x*PHOTO_W*sc, y:editPts.tr.y*PHOTO_H*sc};
-    const eBL={x:editPts.bl.x*PHOTO_W*sc, y:editPts.bl.y*PHOTO_H*sc};
-    const eBR={x:editPts.br.x*PHOTO_W*sc, y:editPts.br.y*PHOTO_H*sc};
-    const eteYpx = editPts.topEdgeY  *PHOTO_H*sc;
-    const eseYpx = editPts.sweetSpotY*PHOTO_H*sc;
-    const eteL=lerpX(eTL,eBL,eteYpx); const eteR=lerpX(eTR,eBR,eteYpx);
-    const eseL=lerpX(eTL,eBL,eseYpx); const eseR=lerpX(eTR,eBR,eseYpx);
-
-    const eBladeStr = `${eTL.x},${eTL.y} ${eTR.x},${eTR.y} ${eBR.x},${eBR.y} ${eBL.x},${eBL.y}`;
-    const eteStr    = `${eTL.x},${eTL.y} ${eTR.x},${eTR.y} ${eteR},${eteYpx} ${eteL},${eteYpx}`;
-    const essStr    = `${eteL},${eteYpx} ${eteR},${eteYpx} ${eseR},${eseYpx} ${eseL},${eseYpx}`;
-    const etoeStr   = `${eseL},${eseYpx} ${eseR},${eseYpx} ${eBR.x},${eBR.y} ${eBL.x},${eBL.y}`;
+  if (editing && editPoints) {
+    const ep   = sanitise(editPoints);
+    // Edit mode uses the exact same toPx as view mode (PHOTO_HEIGHT).
+    const c    = toPx;
+    const lerp = (a, b, t) => a + (b - a) * t;
+    const divY  = (t) => lerp(ep.topLeft.y, ep.botLeft.y, t) * PHOTO_HEIGHT;
+    const divXL = (t) => lerp(ep.topLeft.x, ep.botLeft.x, t) * photoWidth;
+    const divXR = (t) => lerp(ep.topRight.x, ep.botRight.x, t) * photoWidth;
 
     return (
-      <SafeAreaView style={{flex:1,backgroundColor:'#000'}}>
-        {/* Header */}
-        <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',
-                      paddingHorizontal:16,paddingVertical:10,backgroundColor:theme.bgCard,
-                      borderBottomWidth:1,borderBottomColor:theme.border}}>
-          <TouchableOpacity onPress={()=>setEditMode(false)}
-            style={{paddingHorizontal:14,paddingVertical:8,borderRadius:10,
-                    borderWidth:1,borderColor:theme.border,backgroundColor:theme.bgInput}}>
-            <Text style={{color:theme.text,fontSize:14,fontWeight:'700'}}>Cancel</Text>
-          </TouchableOpacity>
-          <View style={{alignItems:'center'}}>
-            <Text style={{color:theme.text,fontSize:15,fontWeight:'700'}}>Edit Zones</Text>
-            <Text style={{color:theme.textSub,fontSize:11}}>Drag handles to match your bat</Text>
-          </View>
-          <TouchableOpacity onPress={saveZones}
-            style={{paddingHorizontal:14,paddingVertical:8,borderRadius:10,
-                    backgroundColor:theme.accent}}>
-            <Text style={{color:'#fff',fontSize:14,fontWeight:'800'}}>Save</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Zoom controls */}
-        <View style={{flexDirection:'row',justifyContent:'center',alignItems:'center',
-                      gap:12,paddingVertical:8,backgroundColor:theme.bgCard}}>
-          <Text style={{color:theme.textMuted,fontSize:12}}>Zoom:</Text>
-          {[0.6,0.8,1.0,1.3].map(z=>(
-            <TouchableOpacity key={z} onPress={()=>setZoomScale(z)}
-              style={{paddingHorizontal:12,paddingVertical:5,borderRadius:8,
-                      backgroundColor:zoomScale===z?theme.accent:theme.bgInput,
-                      borderWidth:1,borderColor:zoomScale===z?theme.accent:theme.border}}>
-              <Text style={{color:zoomScale===z?'#fff':theme.text,fontSize:13,fontWeight:'700'}}>
-                {Math.round(z*100)}%
-              </Text>
+      <SafeAreaView style={{ flex: 1, backgroundColor: theme.bg }}>
+        <NavBar navigation={navigation} title="Edit Zone Boundaries"
+          subtitle="Drag corners & dividers · scroll to reach top/bottom"
+          right={
+            <TouchableOpacity onPress={cancelEditing}
+              style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10,
+                       backgroundColor: theme.bgInput, borderWidth: 1, borderColor: theme.border }}>
+              <AppText style={{ color: theme.textMuted, fontSize: fs(13), fontWeight: '700' }}>Cancel</AppText>
             </TouchableOpacity>
-          ))}
+          } />
+
+        {/* Instructions + Reset */}
+        <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8,
+                       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <View style={{ flex: 1 }}>
+            <AppText style={{ color: theme.text, fontSize: fs(12), fontWeight: '700' }}>
+              Step 1 — Scroll to each corner handle and drag it to the blade edge
+            </AppText>
+            <AppText style={{ color: theme.textSub, fontSize: fs(11), marginTop: 1 }}>
+              Step 2 — Drag the blue/red dividers to set the zone heights
+            </AppText>
+          </View>
+          <TouchableOpacity onPress={resetPoints}
+            style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, marginLeft: 10,
+                     backgroundColor: '#3b82f6', borderWidth: 1, borderColor: '#3b82f6' }}>
+            <AppText style={{ color: '#fff', fontSize: fs(12), fontWeight: '700' }}>Reset</AppText>
+          </TouchableOpacity>
         </View>
 
-        {/* Instructions row */}
-        <View style={{flexDirection:'row',paddingHorizontal:16,paddingVertical:6,
-                      backgroundColor:theme.bgCard,gap:16}}>
-          <Text style={{color:'#fff',fontSize:11,fontWeight:'700'}}>
-            ✛ White = blade corners
-          </Text>
-          <Text style={{color:'#4fc3f7',fontSize:11,fontWeight:'700'}}>
-            ━ Blue = top edge line
-          </Text>
-          <Text style={{color:'#ef5350',fontSize:11,fontWeight:'700'}}>
-            ━ Red = toe line
-          </Text>
-        </View>
+        {/* Scrollable full-height photo — scroll is frozen synchronously via
+            setNativeProps the moment any handle is touched, then re-enabled
+            on release. The photo must be full PHOTO_HEIGHT so top/bottom
+            handles (at y≈0.04 and y≈0.93) are visible and reachable. */}
+        <ScrollView
+          ref={editScrollRef}
+          bounces={false}
+          showsVerticalScrollIndicator={true}
+          style={{ flex: 1 }}>
 
-        {/* Scrollable photo with handles */}
-        <ScrollView style={{flex:1}} contentContainerStyle={{alignItems:'center'}}
-          scrollEnabled={scrollEnabled}>
-          <View style={{
-            width:PHOTO_W*sc, height:PHOTO_H*sc,
-            marginVertical:12,
-            borderRadius:12, overflow:'hidden',
-          }}>
-            {/* Photo */}
-            {hasBatPhoto ? (
-              <Image source={{uri:batData.photo_uri}}
-                style={{width:PHOTO_W*sc,height:PHOTO_H*sc}}
-                resizeMode="cover"/>
-            ) : (
-              <View style={{flex:1,backgroundColor:theme.bgInput,
-                            alignItems:'center',justifyContent:'center'}}>
-                <Text style={{fontSize:60}}>🏏</Text>
-              </View>
+          <View style={{ width: photoWidth, height: PHOTO_HEIGHT, backgroundColor: '#000' }}>
+            {bat?.photo_uri && (
+              <Image source={{ uri: bat.photo_uri }}
+                style={{ width: photoWidth, height: PHOTO_HEIGHT, position: 'absolute' }}
+                resizeMode="cover" />
             )}
 
-            {/* SVG zone fills */}
-            <Svg style={{position:'absolute',top:0,left:0}}
-              width={PHOTO_W*sc} height={PHOTO_H*sc}>
-              <Rect x={0} y={0} width={PHOTO_W*sc} height={PHOTO_H*sc}
-                fill="rgba(0,0,0,0.40)"/>
-              <Polygon points={eBladeStr} fill="rgba(0,0,0,0)"/>
-              <Polygon points={eteStr}  fill="rgba(79,195,247,0.28)"/>
-              <Polygon points={essStr}  fill="rgba(255,179,0,0.28)"/>
-              <Polygon points={etoeStr} fill="rgba(239,83,80,0.28)"/>
-              <Polygon points={eBladeStr} fill="none"
-                stroke="rgba(255,255,255,0.7)" strokeWidth={2}/>
-              <Line x1={eteL} y1={eteYpx} x2={eteR} y2={eteYpx}
-                stroke="#4fc3f7" strokeWidth={2}/>
-              <Line x1={eseL} y1={eseYpx} x2={eseR} y2={eseYpx}
-                stroke="#ef5350" strokeWidth={2}/>
+            <Svg width={photoWidth} height={PHOTO_HEIGHT} style={{ position: 'absolute' }}>
+              <Polygon
+                points={[ep.topLeft, ep.topRight, ep.botRight, ep.botLeft]
+                  .map(p => `${c(p).x},${c(p).y}`).join(' ')}
+                fill="rgba(59,130,246,0.18)" stroke="#fff" strokeWidth={2} />
+              <Line x1={divXL(ep.topEdgeDivider)} y1={divY(ep.topEdgeDivider)}
+                    x2={divXR(ep.topEdgeDivider)} y2={divY(ep.topEdgeDivider)}
+                    stroke="#42a5f5" strokeWidth={3} />
+              <Line x1={divXL(ep.toeDivider)} y1={divY(ep.toeDivider)}
+                    x2={divXR(ep.toeDivider)} y2={divY(ep.toeDivider)}
+                    stroke="#ef5350" strokeWidth={3} />
             </Svg>
 
-            {/* Zone divider drag handles */}
-            <ZoneDivider yRatio={editPts.topEdgeY}
-              leftXpx={eteL} rightXpx={eteR}
-              color="#4fc3f7" label="Top Edge" scale={sc}
-              onMove={v=>upd('topEdgeY',v)}
-              onDragStart={()=>setScrollEnabled(false)}
-              onDragEnd={()=>setScrollEnabled(true)}/>
-            <ZoneDivider yRatio={editPts.sweetSpotY}
-              leftXpx={eseL} rightXpx={eseR}
-              color="#ef5350" label="Toe" scale={sc}
-              onMove={v=>upd('sweetSpotY',v)}
-              onDragStart={()=>setScrollEnabled(false)}
-              onDragEnd={()=>setScrollEnabled(true)}/>
+            {/* Corner handles — 56pt for easy grab */}
+            {['topLeft', 'topRight', 'botLeft', 'botRight'].map(key => {
+              const p = c(ep[key]);
+              return (
+                <View key={key} {...cornerRefs[key]}
+                  style={{ position: 'absolute', left: p.x - 28, top: p.y - 28,
+                           width: 56, height: 56, borderRadius: 28,
+                           backgroundColor: '#fff', borderWidth: 3, borderColor: theme.accent,
+                           shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 5, elevation: 8 }} />
+              );
+            })}
 
-            {/* 4 corner handles */}
-            <DragHandle x={editPts.tl.x} y={editPts.tl.y} scale={sc}
-              onMove={(x,y)=>upd('tl',{x,y})}
-              onDragStart={()=>setScrollEnabled(false)}
-              onDragEnd={()=>setScrollEnabled(true)}/>
-            <DragHandle x={editPts.tr.x} y={editPts.tr.y} scale={sc}
-              onMove={(x,y)=>upd('tr',{x,y})}
-              onDragStart={()=>setScrollEnabled(false)}
-              onDragEnd={()=>setScrollEnabled(true)}/>
-            <DragHandle x={editPts.bl.x} y={editPts.bl.y} scale={sc}
-              onMove={(x,y)=>upd('bl',{x,y})}
-              onDragStart={()=>setScrollEnabled(false)}
-              onDragEnd={()=>setScrollEnabled(true)}/>
-            <DragHandle x={editPts.br.x} y={editPts.br.y} scale={sc}
-              onMove={(x,y)=>upd('br',{x,y})}
-              onDragStart={()=>setScrollEnabled(false)}
-              onDragEnd={()=>setScrollEnabled(true)}/>
+            {/* Divider pills */}
+            <View {...dividerRefs.topEdgeDivider}
+              style={{ position: 'absolute',
+                       left: (divXL(ep.topEdgeDivider) + divXR(ep.topEdgeDivider)) / 2 - 56,
+                       top:  divY(ep.topEdgeDivider) - 22,
+                       backgroundColor: '#42a5f5', borderRadius: 16,
+                       paddingHorizontal: 16, paddingVertical: 10,
+                       shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 4, elevation: 6 }}>
+              <AppText style={{ color: '#fff', fontSize: fs(13), fontWeight: '700' }}>⠿ Top Edge</AppText>
+            </View>
+            <View {...dividerRefs.toeDivider}
+              style={{ position: 'absolute',
+                       left: (divXL(ep.toeDivider) + divXR(ep.toeDivider)) / 2 - 36,
+                       top:  divY(ep.toeDivider) - 22,
+                       backgroundColor: '#ef5350', borderRadius: 16,
+                       paddingHorizontal: 16, paddingVertical: 10,
+                       shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 4, elevation: 6 }}>
+              <AppText style={{ color: '#fff', fontSize: fs(13), fontWeight: '700' }}>⠿ Toe</AppText>
+            </View>
+          </View>
+
+          {/* Legend + Save inside scroll */}
+          <View style={{ padding: 16 }}>
+            <AppText style={{ color: theme.textMuted, fontSize: fs(11), lineHeight: 18, marginBottom: 16 }}>
+              ○  White handles = blade corners (scroll to top/bottom to reach them){'\n'}
+              ─  Blue line = top-edge / sweet-spot boundary{'\n'}
+              ─  Red line = sweet-spot / toe boundary{'\n'}
+              Scroll is automatically frozen while dragging a handle.
+            </AppText>
+            <TouchableOpacity onPress={saveEditing}
+              style={{ backgroundColor: theme.accent, borderRadius: 14, padding: 18, alignItems: 'center' }}>
+              <AppText style={{ color: '#fff', fontSize: fs(16), fontWeight: '800' }}>
+                ✓ Save Zone Boundaries
+              </AppText>
+            </TouchableOpacity>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -413,215 +349,144 @@ export default function HeatmapScreen({ navigation, route }) {
 
   // ── VIEW MODE ─────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={{flex:1,backgroundColor:theme.bg}}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.bg }}>
       <NavBar navigation={navigation} title="Heatmap"
-        subtitle={`${batData?.name} · ${ZONE_LABELS[selZone]}`} showHome/>
+        subtitle={`${bat?.name || bat?.brand || 'Bat'}`}
+        right={
+          bat?.photo_uri ? (
+            <TouchableOpacity onPress={startEditing}
+              style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
+                       backgroundColor: theme.bgInput, borderWidth: 1, borderColor: theme.border }}>
+              <AppText style={{ color: theme.accent, fontSize: fs(12), fontWeight: '700' }}>✏️ Edit Zones</AppText>
+            </TouchableOpacity>
+          ) : undefined
+        } />
 
-      <ScrollView contentContainerStyle={{padding:16,alignItems:'center'}}>
+      <ScrollView bounces={false}>
+        {bat?.photo_uri ? (
+          <View style={{ width: photoWidth, height: PHOTO_HEIGHT, backgroundColor: '#000' }}>
+            <Image source={{ uri: bat.photo_uri }}
+              style={{ width: photoWidth, height: PHOTO_HEIGHT, position: 'absolute' }}
+              resizeMode="cover" />
 
-        {/* Readiness card */}
-        <View style={{width:'100%',backgroundColor:theme.bgCard,borderRadius:16,
-                      padding:16,marginBottom:16,borderWidth:2,borderColor:batReadCol}}>
-          {/* Overall bat readiness */}
-          <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center'}}>
-            <Text style={{color:theme.textMuted,fontSize:11,fontWeight:'700',letterSpacing:1}}>
-              BAT READINESS
-            </Text>
-            <Text style={{color:batReadCol,fontSize:22,fontWeight:'800'}}>
-              {(batReadiness*100).toFixed(0)}%
-            </Text>
-          </View>
-          <View style={{height:8,backgroundColor:theme.border,borderRadius:4,marginTop:6,marginBottom:14}}>
-            <View style={{height:8,width:`${Math.min(batReadiness*100,100)}%`,
-                          backgroundColor:batReadCol,borderRadius:4}}/>
-          </View>
-          {/* Selected zone progress */}
-          <Text style={{color:readCol,fontSize:16,fontWeight:'800'}}>{readLbl}</Text>
-          <Text style={{color:theme.textSub,fontSize:13,marginTop:4}}>
-            {ZONE_LABELS[selZone]} · {selCount} / {selTarget} knocks ({(selProg*100).toFixed(0)}%)
-          </Text>
-          <View style={{height:6,backgroundColor:theme.border,borderRadius:3,marginTop:8}}>
-            <View style={{height:6,width:`${Math.min(selProg*100,100)}%`,
-                          backgroundColor:readCol,borderRadius:3}}/>
-          </View>
-        </View>
+            <Svg width={photoWidth} height={PHOTO_HEIGHT} style={{ position: 'absolute' }}>
+              <Defs>
+                <ClipPath id="bladeClip">
+                  <Polygon points={fullClipPolygon()} />
+                </ClipPath>
+              </Defs>
+              <Polygon points={zonePolygon(0, zonePoints.topEdgeDivider)}
+                       fill={heatColour(zonePct('top-edge'))} opacity={0.55}
+                       clipPath="url(#bladeClip)" />
+              <Polygon points={zonePolygon(zonePoints.topEdgeDivider, zonePoints.toeDivider)}
+                       fill={heatColour(zonePct('sweet-spot'))} opacity={0.55}
+                       clipPath="url(#bladeClip)" />
+              <Polygon points={zonePolygon(zonePoints.toeDivider, 1)}
+                       fill={heatColour(zonePct('toe'))} opacity={0.55}
+                       clipPath="url(#bladeClip)" />
+              <Polygon points={fullClipPolygon()} fill="none" stroke="#fff" strokeOpacity={0.4} strokeWidth={1.5} />
+            </Svg>
 
-        {/* Zone selector — directly on this screen */}
-        <View style={{width:'100%',marginBottom:16}}>
-          <Text style={{color:theme.textMuted,fontSize:11,fontWeight:'700',
-                        letterSpacing:1,marginBottom:10}}>SELECT ZONE</Text>
-          <View style={{flexDirection:'row',flexWrap:'wrap',gap:8}}>
-            {ZONE_LIST.map(z=>(
-              <TouchableOpacity key={z} onPress={()=>setSelZone(z)}
-                style={{paddingHorizontal:14,paddingVertical:8,borderRadius:20,
-                        borderWidth:1.5,
-                        backgroundColor:selZone===z?theme.accentDim:theme.bgCard,
-                        borderColor:selZone===z?theme.accent:theme.border}}>
-                <Text style={{color:selZone===z?theme.accent:theme.textSub,
-                              fontSize:13,fontWeight:'700'}}>{ZONE_LABELS[z]}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        {/* Edit button */}
-        <TouchableOpacity onPress={()=>setEditMode(true)}
-          style={{width:'100%',marginBottom:16,flexDirection:'row',
-                  alignItems:'center',justifyContent:'center',gap:8,
-                  backgroundColor:theme.bgCard,borderRadius:12,padding:12,
-                  borderWidth:1,borderColor:theme.border}}>
-          <Text style={{color:theme.accent,fontSize:14,fontWeight:'700'}}>
-            ✏️ Edit Zone Boundaries
-          </Text>
-          <Text style={{color:theme.textMuted,fontSize:12}}>
-            {batData?.heatmap_points?'(set ✓)':'(tap to set up)'}
-          </Text>
-        </TouchableOpacity>
-
-        {/* Bat photo + SVG heatmap */}
-        <View style={{width:PHOTO_W,height:PHOTO_H,borderRadius:16,overflow:'hidden',
-                      backgroundColor:theme.bgCard,borderWidth:1,borderColor:theme.border,
-                      marginBottom:20}}>
-          {hasBatPhoto?(
-            <Image source={{uri:batData.photo_uri}}
-              style={{width:PHOTO_W,height:PHOTO_H,position:'absolute'}}
-              resizeMode="cover"/>
-          ):(
-            <View style={{width:PHOTO_W,height:PHOTO_H,position:'absolute',
-                          backgroundColor:theme.bgInput,
-                          alignItems:'center',justifyContent:'center'}}>
-              <Text style={{fontSize:60}}>🏏</Text>
-              <Text style={{color:theme.textMuted,fontSize:12,marginTop:8,
-                            textAlign:'center',paddingHorizontal:20}}>
-                Add a photo on Bat Profile, then tap Edit Zone Boundaries
-              </Text>
+            <View style={{ position: 'absolute',
+                           top: toPx({x:0, y: zonePoints.topEdgeDivider / 2 + zonePoints.topLeft.y / 2}).y - 10,
+                           left: 14, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 8,
+                           paddingHorizontal: 10, paddingVertical: 4 }}>
+              <AppText style={{ color: '#fff', fontSize: fs(11), fontWeight: '700' }}>TOP EDGE</AppText>
             </View>
-          )}
-
-          {/* SVG heatmap — grid cells clipped to zone quadrilateral */}
-          <Svg style={{position:'absolute',top:0,left:0}}
-            width={PHOTO_W} height={PHOTO_H}>
-            <Defs>
-              <ClipPath id="activeZone">
-                <Polygon points={activePoly}/>
-              </ClipPath>
-            </Defs>
-
-            {/* Grid: each row's x-start is interpolated across the tapered blade */}
-            <G clipPath="url(#activeZone)">
-              {activeGrid.map((row,ri)=>
-                row.map((intensity,ci)=>{
-                  // interpolate left edge x for this row
-                  const rowFrac = (ri+0.5)/gridRows;
-                  const rowY    = gridTopY+rowFrac*gridH;
-                  const rowLeftX= lerpX(
-                    {x:gridTopL, y:gridTopY},
-                    {x:gridBotL, y:gridTopY+gridH},
-                    rowY
-                  );
-                  const cellW = bladeW/COLS;
-                  const cellH = gridH/gridRows;
-                  return (
-                    <Rect key={`${ri}-${ci}`}
-                      x={rowLeftX+ci*cellW} y={gridTopY+ri*cellH}
-                      width={cellW} height={cellH}
-                      fill={heatColour(intensity)} opacity={0.82}/>
-                  );
-                })
-              )}
-            </G>
-
-            {/* Zone boundary lines */}
-            <Line x1={teL} y1={teYpx} x2={teR} y2={teYpx}
-              stroke="rgba(79,195,247,0.6)" strokeWidth={1.5}/>
-            <Line x1={ssL} y1={ssYpx} x2={ssR} y2={ssYpx}
-              stroke="rgba(239,83,80,0.6)" strokeWidth={1.5}/>
-            {/* Blade outline */}
-            <Polygon points={bladePoly} fill="none"
-              stroke="rgba(255,255,255,0.3)" strokeWidth={1.5}/>
-          </Svg>
-
-          {/* Zone labels on photo */}
-          {[
-            {label:'TOP EDGE', color:'#4fc3f7', x:TL.x+8, y:TL.y+6},
-            {label:`SWEET SPOT · ${(selProg*100).toFixed(0)}%`, color:'#fff', x:teL+8, y:teYpx+6},
-            {label:'TOE', color:'#ef5350', x:ssL+8, y:ssYpx+4},
-          ].map(({label,color,x,y})=>(
-            <View key={label} style={{position:'absolute',top:y,left:x,
-                          backgroundColor:'rgba(0,0,0,0.55)',
-                          paddingHorizontal:8,paddingVertical:3,borderRadius:8}}>
-              <Text style={{color,fontSize:10,fontWeight:'700'}}>{label}</Text>
+            <View style={{ position: 'absolute',
+                           top: toPx({x:0, y: (zonePoints.topEdgeDivider + zonePoints.toeDivider) / 2}).y - 10,
+                           left: 14, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 8,
+                           paddingHorizontal: 10, paddingVertical: 4 }}>
+              <AppText style={{ color: '#fff', fontSize: fs(11), fontWeight: '700' }}>
+                SWEET SPOT · {zonePct('sweet-spot').toFixed(0)}%
+              </AppText>
             </View>
-          ))}
-        </View>
-
-        {/* Heat scale */}
-        <View style={{width:'100%',marginBottom:20}}>
-          <Text style={{color:theme.textMuted,fontSize:11,fontWeight:'700',
-                        letterSpacing:1,marginBottom:8}}>HEAT SCALE</Text>
-          <View style={{flexDirection:'row',height:18,borderRadius:9,overflow:'hidden'}}>
-            {Array.from({length:40},(_,i)=>(
-              <View key={i} style={{flex:1,backgroundColor:heatColour(i/39)}}/>
-            ))}
+            <View style={{ position: 'absolute',
+                           top: toPx({x:0, y: (zonePoints.toeDivider + 1) / 2}).y - 10,
+                           left: 14, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 8,
+                           paddingHorizontal: 10, paddingVertical: 4 }}>
+              <AppText style={{ color: '#fff', fontSize: fs(11), fontWeight: '700' }}>TOE</AppText>
+            </View>
           </View>
-          <View style={{flexDirection:'row',justifyContent:'space-between',marginTop:4}}>
-            <Text style={{color:theme.textMuted,fontSize:11}}>0% (not knocked)</Text>
-            <Text style={{color:theme.textMuted,fontSize:11}}>100% (done)</Text>
+        ) : (
+          <View style={{ padding: 40, alignItems: 'center' }}>
+            <AppText style={{ fontSize: 52, marginBottom: 12 }}>🏏</AppText>
+            <AppText style={{ color: theme.text, fontSize: fs(15), fontWeight: '700', textAlign: 'center' }}>
+              Add a bat photo to see the heatmap
+            </AppText>
+            <AppText style={{ color: theme.textSub, fontSize: fs(13), textAlign: 'center', marginTop: 6 }}>
+              Go back to the bat profile and tap "Add Bat Photo"
+            </AppText>
           </View>
-        </View>
+        )}
 
-        {/* All zones summary */}
-        <View style={{width:'100%'}}>
-          <Text style={{color:theme.textMuted,fontSize:11,fontWeight:'700',
-                        letterSpacing:1,marginBottom:10}}>ALL ZONES</Text>
-          {ZONE_LIST.map(zone=>{
-            const count   = getCount(zone);
-            const prog    = zonePct(zone);
-            const tgt     = zoneTarget(zone);
-            const alloc   = ZONE_ALLOC[zone] || 0;
-            const isTgt   = zone===selZone;
-            const col     = prog>=1.0?'#43a047':prog>=0.80?'#fb8c00':prog>=0.50?'#fdd835':'#1565C0';
+        <View style={{ padding: 16 }}>
+          <View style={{ backgroundColor: theme.bgCard, borderRadius: 14, padding: 14,
+                         marginBottom: 16, borderWidth: 1, borderColor: theme.border }}>
+            <AppText style={{ color: theme.textMuted, fontSize: fs(10), fontWeight: '700',
+                              letterSpacing: 0.5, marginBottom: 8 }}>HEAT SCALE</AppText>
+            <Svg width={screenWidth - 60} height={14}>
+              <Defs>
+                <LinearGradient id="heatGrad" x1="0" y1="0" x2="1" y2="0">
+                  <Stop offset="0"    stopColor="#1e88e5" />
+                  <Stop offset="0.33" stopColor="#7cb342" />
+                  <Stop offset="0.6"  stopColor="#fdd835" />
+                  <Stop offset="0.8"  stopColor="#fb8c00" />
+                  <Stop offset="1"    stopColor="#e53935" />
+                </LinearGradient>
+              </Defs>
+              <Rect x={0} y={0} width={screenWidth - 60} height={14} rx={7} fill="url(#heatGrad)" />
+            </Svg>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
+              <AppText style={{ color: theme.textSub, fontSize: fs(10) }}>0% (not knocked)</AppText>
+              <AppText style={{ color: theme.textSub, fontSize: fs(10) }}>100% (done)</AppText>
+            </View>
+          </View>
+
+          <View style={{ backgroundColor: theme.bgCard, borderRadius: 16,
+                         padding: 18, marginBottom: 20, borderWidth: 2, borderColor: readinessColour }}>
+            <AppText style={{ color: readinessColour, fontSize: fs(18), fontWeight: '800' }}>
+              {readinessLabel}
+            </AppText>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 }}>
+              <AppText style={{ color: theme.textMuted, fontSize: fs(13) }}>Overall progress</AppText>
+              <AppText style={{ color: theme.text, fontSize: fs(13), fontWeight: '700' }}>
+                {overallCount} knocks · {overallPct.toFixed(0)}%
+              </AppText>
+            </View>
+            <View style={{ height: 8, backgroundColor: theme.border, borderRadius: 4, marginTop: 8 }}>
+              <View style={{ height: 8, width: `${overallPct}%`, backgroundColor: readinessColour, borderRadius: 4 }} />
+            </View>
+          </View>
+
+          <AppText style={{ color: theme.textMuted, fontSize: fs(11), fontWeight: '700',
+                           letterSpacing: 0.5, marginBottom: 10 }}>ZONE BREAKDOWN</AppText>
+          {['top-edge', 'sweet-spot', 'edge', 'toe'].map(zone => {
+            const count  = getCount(zone);
+            const pct    = zonePct(zone);
+            const colour = heatColour(pct);
             return (
-              <TouchableOpacity key={zone} onPress={()=>setSelZone(zone)}
-                style={{backgroundColor:theme.bgCard,borderRadius:14,padding:14,marginBottom:8,
-                        flexDirection:'row',alignItems:'center',
-                        borderWidth:isTgt?2:1,borderColor:isTgt?col:theme.border}}>
-                <View style={{width:12,height:12,borderRadius:6,
-                              backgroundColor:col,marginRight:12,opacity:isTgt?1:0.5}}/>
-                <View style={{flex:1}}>
-                  <View style={{flexDirection:'row',alignItems:'center',gap:8}}>
-                    <Text style={{color:theme.text,fontSize:14,fontWeight:'700'}}>
-                      {ZONE_LABELS[zone]}
-                    </Text>
-                    {alloc>0&&(
-                      <View style={{backgroundColor:theme.accentDim,paddingHorizontal:6,
-                                    paddingVertical:2,borderRadius:6}}>
-                        <Text style={{color:theme.accent,fontSize:10,fontWeight:'700'}}>
-                          {Math.round(alloc*100)}% of target
-                        </Text>
-                      </View>
-                    )}
-                    {isTgt&&(
-                      <Text style={{color:theme.textMuted,fontSize:10}}>← Active</Text>
-                    )}
-                  </View>
-                  <Text style={{color:theme.textSub,fontSize:12,marginTop:3}}>
-                    {count} / {tgt} knocks
-                  </Text>
-                  {/* Mini progress bar */}
-                  <View style={{height:3,backgroundColor:theme.border,borderRadius:2,marginTop:5}}>
-                    <View style={{height:3,width:`${Math.min(prog*100,100)}%`,
-                                  backgroundColor:col,borderRadius:2}}/>
-                  </View>
+              <View key={zone} style={{ backgroundColor: theme.bgCard, borderRadius: 14,
+                                        padding: 14, marginBottom: 8,
+                                        flexDirection: 'row', alignItems: 'center',
+                                        borderWidth: 1, borderColor: theme.border }}>
+                <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: colour, marginRight: 12 }} />
+                <View style={{ flex: 1 }}>
+                  <AppText style={{ color: theme.text, fontSize: fs(14), fontWeight: '700' }}>
+                    {ZONE_LABELS[zone]}
+                  </AppText>
+                  <AppText style={{ color: theme.textSub, fontSize: fs(12), marginTop: 2 }}>
+                    {count} knocks · target {Math.round(zoneTarget(zone)).toLocaleString()}
+                  </AppText>
                 </View>
-                <Text style={{color:col,fontSize:16,fontWeight:'800',marginLeft:8}}>
-                  {(prog*100).toFixed(0)}%
-                </Text>
-              </TouchableOpacity>
+                <AppText style={{ color: colour, fontSize: fs(18), fontWeight: '800' }}>
+                  {pct.toFixed(0)}%
+                </AppText>
+              </View>
             );
           })}
         </View>
-        <View style={{height:30}}/>
+        <View style={{ height: 30 }} />
       </ScrollView>
     </SafeAreaView>
   );

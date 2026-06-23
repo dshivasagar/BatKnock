@@ -13,7 +13,7 @@ const ZONES = [
 ];
 
 export default function BatMapScreen({ navigation, route }) {
-  const { theme } = useTheme();
+  const { theme, fs } = useTheme();
   const bat = route.params?.bat;
   const initialZone = route.params?.selectedZone || 'sweet-spot';
   const [points, setPoints] = useState([]);

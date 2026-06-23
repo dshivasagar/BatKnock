@@ -4,6 +4,7 @@ import {
   View, Text, ScrollView, TouchableOpacity,
   RefreshControl, StyleSheet, Modal, TouchableWithoutFeedback, Dimensions,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../ThemeContext';
 import { getBats, getSessions, getOverallStats } from '../storage/database';
@@ -23,7 +24,7 @@ function IconTile({ emoji, bg, size = 52 }) {
 
 // ── Glass/Gradient card — uses BlurView in clear mode ────────────────────────
 function GradientCard({ children, style, onPress }) {
-  const { theme, mode } = useTheme();
+  const { theme, mode, fs } = useTheme();
   const Inner = onPress ? TouchableOpacity : View;
 
   if (mode === 'clear') {
@@ -75,6 +76,7 @@ export default function HomeScreen({ navigation }) {
   const [sessionsExpanded, setSessionsExpanded] = useState(false);
   const [showThemeModal, setShowThemeModal] = useState(false);
   const [showLinksSection, setShowLinksSection] = useState(true);
+  const [showHowToUse, setShowHowToUse] = useState(false);
 
   const loadData = async () => {
     const s = await getOverallStats();
@@ -104,6 +106,17 @@ export default function HomeScreen({ navigation }) {
     { num: '5', text: 'Repeat oiling and knocking 4–6 times before using in a match.' },
   ];
 
+  // App-level workflow guide — how to use Knockmate itself, distinct from
+  // the bat-knocking technique guide above.
+  const howToUseSteps = [
+    { icon: '🏏', text: 'Add a new bat with all the necessary info — brand, willow type, size, weight, grain count and your knocking target.' },
+    { icon: '📐', text: 'Define zone boundaries on the Heatmap screen so knock tracking maps accurately to your bat\u2019s actual photo.' },
+    { icon: '🛢️', text: 'Move to the Bat Preparation Journey — start with Oiling, then knocking.' },
+    { icon: '🔨', text: 'Cover all areas of the bat with the right knocking force for that phase, so the willow compresses evenly across the whole blade.' },
+    { icon: '✅', text: 'Once complete, the Heatmap will show you whether the bat is ready.' },
+    { icon: '🔄', text: 'Repeat the process based on the age and type of wood — older bats or different willow grades may need extra rounds for the best result.' },
+  ];
+
   const ALL_SHORTCUTS = [
     { id: 'activity',  label: 'Recent Sessions', icon: '📋', bg: '#1a1a2a', screen: 'ActivityLog' },
     { id: 'trends',    label: 'Trends',          icon: '📈', bg: '#1a2a1a', screen: 'Trends' },
@@ -112,7 +125,6 @@ export default function HomeScreen({ navigation }) {
     { id: 'batcare',   label: 'Bat Care',        icon: '📚', bg: '#1e3a5f', screen: 'Guide' },
     { id: 'mictest',   label: 'Mic Test',        icon: '🎙️', bg: '#1a2a3a', screen: 'MicTest' },
     { id: 'knockin',   label: 'Knock-In Guide',  icon: '📖', bg: '#2a1a3a', action: 'guide' },
-    { id: 'preptimer', label: 'Prep Timer',       icon: '⏱️', bg: '#1a2a1a', screen: 'PrepTimer' },
     { id: 'mybats',    label: 'My Bats',          icon: '🏏', bg: '#1e3a5f', screen: 'Bats' },
   ];
 
@@ -273,6 +285,50 @@ export default function HomeScreen({ navigation }) {
 
 
 
+        {/* ── HOW TO USE THIS APP ─────────────────────────────────────────── */}
+        <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
+          <GradientCard onPress={() => setShowHowToUse(s => !s)}
+            style={{ borderBottomLeftRadius: showHowToUse ? 0 : 20, borderBottomRightRadius: showHowToUse ? 0 : 20 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 14 }}>
+              <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: '#1e3a5f', alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 22 }}>❔</Text>
+              </View>
+              <Text style={{ color: theme.text, fontSize: F.md, fontWeight: '700', flex: 1 }}>How to Use This App</Text>
+              <Text style={{ color: theme.textMuted, fontSize: F.sm }}>{showHowToUse ? '▲' : '▼'}</Text>
+            </View>
+          </GradientCard>
+          {showHowToUse && (
+            <View style={{
+              backgroundColor: theme.bgCard, borderWidth: 1, borderTopWidth: 0,
+              borderColor: theme.border,
+              borderBottomLeftRadius: 20, borderBottomRightRadius: 20,
+              padding: 16,
+            }}>
+              {howToUseSteps.map((step, idx) => (
+                <View key={idx} style={{
+                  flexDirection: 'row', alignItems: 'flex-start', gap: 12,
+                  marginBottom: idx === howToUseSteps.length - 1 ? 0 : 14,
+                }}>
+                  <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: theme.bgInput,
+                                 alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.border }}>
+                    <Text style={{ fontSize: 14 }}>{step.icon}</Text>
+                  </View>
+                  <Text style={{ color: theme.textSub, fontSize: F.sm, lineHeight: 20, flex: 1 }}>
+                    {step.text}
+                  </Text>
+                </View>
+              ))}
+
+              {/* Guidance disclaimer */}
+              <View style={{ marginTop: 16, paddingTop: 14, borderTopWidth: 1, borderTopColor: theme.border }}>
+                <Text style={{ color: theme.textMuted, fontSize: F.xs, lineHeight: 17, fontStyle: 'italic' }}>
+                  Note: Knockmate is for guidance purposes only. Real-world readiness can vary based on your own knocking technique and the quality of the willow — use these tools as a helpful estimate, not a guarantee.
+                </Text>
+              </View>
+            </View>
+          )}
+        </View>
+
         {/* ── SETTINGS ─────────────────────────────────────────────────────── */}
         <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
           <GradientCard onPress={() => setShowLinksSection(s => !s)}
@@ -293,7 +349,6 @@ export default function HomeScreen({ navigation }) {
             }}>
               {[
                 { label: 'My Bats',           icon: '🏏', bg: '#1e3a5f', screen: 'Bats' },
-                { label: 'Prep Timer',        icon: '⏱️', bg: '#1a2a1a', screen: 'PrepTimer' },
                 { label: 'Recent Sessions',  icon: '📋', bg: '#1a1a2a', screen: 'ActivityLog' },
                 { label: 'Profile',          icon: '👤', bg: '#2a1a2a', screen: 'Profile' },
                 { label: 'Trends & History', icon: '📈', bg: '#1a2a1a', screen: 'Trends' },

@@ -10,7 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 // ─── ACTIVITY LOG ────────────────────────────────────────────
 export function ActivityLogScreen({ navigation }) {
-  const { theme } = useTheme();
+  const { theme, fs } = useTheme();
   const [sessions, setSessions] = useState([]);
 
   useFocusEffect(useCallback(() => {
@@ -24,8 +24,8 @@ export function ActivityLogScreen({ navigation }) {
         {sessions.length === 0 ? (
           <View style={{ alignItems: 'center', paddingTop: 60 }}>
             <AppText style={{ fontSize: 40, marginBottom: 12 }}>📋</AppText>
-            <AppText style={{ color: theme.text, fontSize: 18, fontWeight: '700' }}>No activity yet</AppText>
-            <AppText style={{ color: theme.textSub, fontSize: 14, marginTop: 8 }}>Sessions will appear here</AppText>
+            <AppText style={{ color: theme.text, fontSize: fs(18), fontWeight: '700' }}>No activity yet</AppText>
+            <AppText style={{ color: theme.textSub, fontSize: fs(14), marginTop: 8 }}>Sessions will appear here</AppText>
           </View>
         ) : (
           sessions.map((session, i) => (
@@ -33,7 +33,7 @@ export function ActivityLogScreen({ navigation }) {
               {/* Timeline dot */}
               <View style={{ alignItems: 'center', width: 36 }}>
                 <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: theme.accentDim, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.accent }}>
-                  <AppText style={{ color: theme.accent, fontSize: 16, fontWeight: '800' }}>+</AppText>
+                  <AppText style={{ color: theme.accent, fontSize: fs(16), fontWeight: '800' }}>+</AppText>
                 </View>
                 {i < sessions.length - 1 && (
                   <View style={{ width: 1, flex: 1, backgroundColor: theme.borderLight, marginTop: 4 }} />
@@ -45,15 +45,15 @@ export function ActivityLogScreen({ navigation }) {
                   <View style={{ backgroundColor: theme.accentDim, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}>
                     <AppText style={{ color: theme.accent, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 }}>CREATED</AppText>
                   </View>
-                  <AppText style={{ color: theme.textSub, fontSize: 12 }}>KnockingSession</AppText>
+                  <AppText style={{ color: theme.textSub, fontSize: fs(12) }}>KnockingSession</AppText>
                 </View>
-                <AppText style={{ color: theme.text, fontSize: 15, fontWeight: '700' }}>{session.bat_name || 'Unknown Bat'}</AppText>
-                <AppText style={{ color: theme.textSub, fontSize: 12, marginTop: 3 }}>
+                <AppText style={{ color: theme.text, fontSize: fs(15), fontWeight: '700' }}>{session.bat_name || 'Unknown Bat'}</AppText>
+                <AppText style={{ color: theme.textSub, fontSize: fs(12), marginTop: 3 }}>
                   {session.knock_count} knocks · {Math.round((session.duration_seconds || 0) / 60)}m · zone: middle
                 </AppText>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: theme.borderLight }}>
-                  <AppText style={{ color: theme.textMuted, fontSize: 12 }}>unknown</AppText>
-                  <AppText style={{ color: theme.textMuted, fontSize: 12 }}>{getRelativeTime(session.created_at)}</AppText>
+                  <AppText style={{ color: theme.textMuted, fontSize: fs(12) }}>unknown</AppText>
+                  <AppText style={{ color: theme.textMuted, fontSize: fs(12) }}>{getRelativeTime(session.created_at)}</AppText>
                 </View>
               </View>
             </View>
@@ -67,7 +67,7 @@ export function ActivityLogScreen({ navigation }) {
 
 // ─── BAT CARE LIBRARY ────────────────────────────────────────
 export function BatCareScreen({ navigation }) {
-  const { theme } = useTheme();
+  const { theme, fs } = useTheme();
   const [expanded, setExpanded] = useState({});
 
   const toggle = (id) => setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
@@ -146,9 +146,9 @@ export function BatCareScreen({ navigation }) {
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         {/* Complete Care Guide badge */}
         <TouchableOpacity style={{ backgroundColor: theme.accentDim, borderRadius: 10, padding: 12, marginBottom: 14, flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: theme.accent }}>
-          <AppText style={{ color: theme.accent, fontSize: 13, fontWeight: '700' }}>✓ Complete Care Guide</AppText>
+          <AppText style={{ color: theme.accent, fontSize: fs(13), fontWeight: '700' }}>✓ Complete Care Guide</AppText>
         </TouchableOpacity>
-        <AppText style={{ color: theme.textSub, fontSize: 13, marginBottom: 14, lineHeight: 20 }}>
+        <AppText style={{ color: theme.textSub, fontSize: fs(13), marginBottom: 14, lineHeight: 20 }}>
           Proper maintenance extends bat life 2-5x and improves performance. Follow these guides in order for best results.
         </AppText>
 
@@ -158,18 +158,18 @@ export function BatCareScreen({ navigation }) {
               style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 }}
               onPress={() => toggle(guide.id)}>
               <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: theme.bgInput, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.border }}>
-                <AppText style={{ fontSize: 20 }}>{guide.icon}</AppText>
+                <AppText style={{ fontSize: fs(20) }}>{guide.icon}</AppText>
               </View>
               <View style={{ flex: 1 }}>
-                <AppText style={{ color: theme.text, fontSize: 15, fontWeight: '700' }}>{guide.title}</AppText>
-                <AppText style={{ color: theme.textSub, fontSize: 12, marginTop: 2 }}>{guide.subtitle}</AppText>
+                <AppText style={{ color: theme.text, fontSize: fs(15), fontWeight: '700' }}>{guide.title}</AppText>
+                <AppText style={{ color: theme.textSub, fontSize: fs(12), marginTop: 2 }}>{guide.subtitle}</AppText>
               </View>
-              <AppText style={{ color: theme.textMuted, fontSize: 12 }}>{expanded[guide.id] ? '▲' : '▼'}</AppText>
+              <AppText style={{ color: theme.textMuted, fontSize: fs(12) }}>{expanded[guide.id] ? '▲' : '▼'}</AppText>
             </TouchableOpacity>
             {expanded[guide.id] && guide.sections.map((sec, i) => (
               <View key={i} style={{ paddingHorizontal: 16, paddingBottom: 14, borderTopWidth: 1, borderTopColor: theme.borderLight }}>
-                <AppText style={{ color: theme.accent, fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginTop: 12, marginBottom: 6 }}>{sec.title}</AppText>
-                <AppText style={{ color: theme.textSub, fontSize: 13, lineHeight: 20 }}>{sec.content}</AppText>
+                <AppText style={{ color: theme.accent, fontSize: fs(11), fontWeight: '700', letterSpacing: 0.5, marginTop: 12, marginBottom: 6 }}>{sec.title}</AppText>
+                <AppText style={{ color: theme.textSub, fontSize: fs(13), lineHeight: 20 }}>{sec.content}</AppText>
               </View>
             ))}
           </View>
@@ -182,7 +182,7 @@ export function BatCareScreen({ navigation }) {
 
 // ─── MIC TEST ────────────────────────────────────────────────
 export function MicTestScreen({ navigation }) {
-  const { theme } = useTheme();
+  const { theme, fs } = useTheme();
   const [level, setLevel] = useState(0);
   const [isListening, setIsListening] = useState(false);
   const [knocks, setKnocks] = useState(0);
@@ -237,8 +237,8 @@ export function MicTestScreen({ navigation }) {
                      backgroundColor: theme.bgCard }}>
         <NavButton type="back" onPress={() => { stopListening(); navigation.goBack(); }} />
         <View style={{ alignItems: 'center', flex: 1, marginHorizontal: 8 }}>
-          <AppText style={{ color: theme.text, fontSize: 16, fontWeight: '700' }}>Mic Test</AppText>
-          <AppText style={{ color: theme.textSub, fontSize: 12 }}>Test microphone before a session</AppText>
+          <AppText style={{ color: theme.text, fontSize: fs(16), fontWeight: '700' }}>Mic Test</AppText>
+          <AppText style={{ color: theme.textSub, fontSize: fs(12) }}>Test microphone before a session</AppText>
         </View>
         <NavButton type="home" onPress={() => navigation.navigate('Main')} />
       </View>
@@ -250,8 +250,8 @@ export function MicTestScreen({ navigation }) {
             <AppText style={{ fontSize: 32, color: isListening ? theme.accent : theme.textMuted }}>◎</AppText>
           </View>
 
-          <AppText style={{ color: theme.text, fontSize: 17, fontWeight: '700', marginBottom: 8 }}>Real-Time Decibel Meter</AppText>
-          <AppText style={{ color: theme.textSub, fontSize: 13, textAlign: 'center', lineHeight: 20, marginBottom: 20 }}>
+          <AppText style={{ color: theme.text, fontSize: fs(17), fontWeight: '700', marginBottom: 8 }}>Real-Time Decibel Meter</AppText>
+          <AppText style={{ color: theme.textSub, fontSize: fs(13), textAlign: 'center', lineHeight: 20, marginBottom: 20 }}>
             Test that your microphone picks up knocking sounds before starting a session. You should see the meter jump each time you knock.
           </AppText>
 
@@ -259,13 +259,13 @@ export function MicTestScreen({ navigation }) {
           {isListening && (
             <View style={{ width: '100%', marginBottom: 20 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-                <AppText style={{ color: theme.textSub, fontSize: 12 }}>Level</AppText>
-                <AppText style={{ color: theme.accent, fontSize: 12, fontWeight: '700' }}>{dbValue} dB</AppText>
+                <AppText style={{ color: theme.textSub, fontSize: fs(12) }}>Level</AppText>
+                <AppText style={{ color: theme.accent, fontSize: fs(12), fontWeight: '700' }}>{dbValue} dB</AppText>
               </View>
               <View style={{ height: 12, backgroundColor: theme.bgInput, borderRadius: 6, overflow: 'hidden', borderWidth: 1, borderColor: theme.border }}>
                 <View style={{ height: '100%', width: `${level * 100}%`, backgroundColor: level > 0.6 ? theme.accent : level > 0.3 ? theme.blue : theme.textMuted, borderRadius: 6 }} />
               </View>
-              <AppText style={{ color: theme.textMuted, fontSize: 11, marginTop: 6, textAlign: 'center' }}>
+              <AppText style={{ color: theme.textMuted, fontSize: fs(11), marginTop: 6, textAlign: 'center' }}>
                 {knocks} sounds detected
               </AppText>
             </View>
@@ -274,14 +274,14 @@ export function MicTestScreen({ navigation }) {
           <TouchableOpacity
             style={{ width: '100%', backgroundColor: isListening ? theme.red : theme.accent, borderRadius: 14, padding: 16, alignItems: 'center' }}
             onPress={isListening ? stopListening : startListening}>
-            <AppText style={{ color: '#000', fontSize: 16, fontWeight: '800' }}>
+            <AppText style={{ color: '#000', fontSize: fs(16), fontWeight: '800' }}>
               {isListening ? 'Stop Mic Test' : 'Start Mic Test'}
             </AppText>
           </TouchableOpacity>
 
           {knocks > 0 && !isListening && (
             <TouchableOpacity onPress={() => { setKnocks(0); knocksRef.current = 0; }} style={{ marginTop: 14 }}>
-              <AppText style={{ color: theme.textSub, fontSize: 13, textDecorationLine: 'underline' }}>Reset</AppText>
+              <AppText style={{ color: theme.textSub, fontSize: fs(13), textDecorationLine: 'underline' }}>Reset</AppText>
             </TouchableOpacity>
           )}
         </View>

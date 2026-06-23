@@ -23,7 +23,7 @@ import { SEASON_DATA, CONTINENT_ICONS, MONTHS, isInSeason } from '../data/season
 const STORAGE_KEY = 'batknock_selected_country';
 
 export default function SeasonGuideScreen({ navigation }) {
-  const { theme } = useTheme();
+  const { theme, fs } = useTheme();
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(null);
   const [expanded, setExpanded] = useState({});

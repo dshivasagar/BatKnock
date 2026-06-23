@@ -31,7 +31,7 @@ const GENDER_OPTIONS = ['Male', 'Female', 'Other', 'Prefer not to say'];
 const AGE_RANGES = ['Under 16', '16–24', '25–34', '35–44', '45–54', '55+'];
 
 export default function ProfileScreen({ navigation }) {
-  const { theme } = useTheme();
+  const { theme, fs } = useTheme();
 
   const [country, setCountry] = useState(null);
   const [gender, setGender]   = useState(null);
