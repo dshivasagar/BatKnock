@@ -132,7 +132,9 @@ export default function PrepJourneyCard({ theme, fs, bat, sessions, navigation, 
     if (data?.completed) return 'complete';
     if (index === 0) return data?.startTime ? 'active' : 'ready';
     const prevPhase = phases[index - 1];
-    if (!journey[prevPhase.id]?.completed) return 'locked';
+    // 'inactive' instead of 'locked' — phase is not the recommended next step
+    // but the user can still skip to it (no hard block).
+    if (!journey[prevPhase.id]?.completed) return 'inactive';
     return 'active';
   };
 
@@ -152,6 +154,67 @@ export default function PrepJourneyCard({ theme, fs, bat, sessions, navigation, 
     if (data?.notifId) await Notifications.cancelScheduledNotificationAsync(data.notifId);
     const updated = { ...journey, oiling: { ...data, completed: true, completedAt: Date.now() } };
     await saveJourney(updated);
+  };
+
+  // Skip any phase — works for oiling (before or after timer) and knocking phases.
+  // For locked phases, also auto-completes all preceding incomplete phases so the
+  // journey state stays consistent (no phase active with a locked predecessor).
+  const skipPhase = (phase, phaseIndex) => {
+    const isOiling = phase.id === 'oiling';
+    const warningMsg = isOiling
+      ? "This marks oiling as done without waiting. Make sure you've applied at least one coat of raw linseed oil — skipping completely can affect willow quality."
+      : `This marks ${phase.title} as complete. The willow may not be fully prepared without the full ${phase.targetMinutes} min recommended. This cannot be undone.`;
+
+    Alert.alert(`Skip ${phase.title}?`, warningMsg, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Skip & Continue',
+        style: 'destructive',
+        onPress: async () => {
+          let updated = { ...journey };
+          // Auto-complete any preceding incomplete phases so state is consistent
+          for (let i = 0; i < phaseIndex; i++) {
+            const p = phases[i];
+            if (!updated[p.id]?.completed) {
+              updated[p.id] = { completed: true, completedAt: Date.now(), manuallyCompleted: true, skipped: true };
+            }
+          }
+          // Cancel any oiling notification
+          if (isOiling && journey.oiling?.notifId) {
+            await Notifications.cancelScheduledNotificationAsync(journey.oiling.notifId);
+          }
+          updated[phase.id] = { completed: true, completedAt: Date.now(), manuallyCompleted: true, skipped: true };
+          await saveJourney(updated);
+        },
+      },
+    ]);
+  };
+
+  const markPhaseComplete = (phase) => {
+    const progress = getPhaseProgress(phase);
+    const pct = Math.min(100, Math.round((progress.minutes / phase.targetMinutes) * 100));
+    const underTarget = progress.minutes < phase.targetMinutes;
+
+    Alert.alert(
+      `Complete ${phase.title}?`,
+      underTarget
+        ? `You've logged ${progress.minutes} of ${phase.targetMinutes} min (${pct}%). Marking complete early means the willow may not be fully prepared — results may vary.\n\nThis cannot be undone.`
+        : `You've hit the target for this phase (${progress.minutes} min logged). Ready to move on?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Mark Complete',
+          style: underTarget ? 'destructive' : 'default',
+          onPress: async () => {
+            const updated = {
+              ...journey,
+              [phase.id]: { completed: true, completedAt: Date.now(), manuallyCompleted: true },
+            };
+            await saveJourney(updated);
+          },
+        },
+      ]
+    );
   };
 
   const getPhaseProgress = (phase) => {
@@ -187,23 +250,23 @@ export default function PrepJourneyCard({ theme, fs, bat, sessions, navigation, 
 
       {phases.map((phase, index) => {
         const status = getPhaseStatus(phase, index);
-        const isLocked   = status === 'locked';
+        const isInactive = status === 'inactive';
         const isComplete = status === 'complete';
         const isActive   = status === 'active' || status === 'ready';
 
         return (
           <View key={phase.id} style={{
             marginBottom: index < phases.length - 1 ? 14 : 0,
-            opacity: isLocked ? 0.45 : 1,
+            opacity: isInactive ? 0.6 : 1,
           }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: isLocked ? 0 : 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: isInactive ? 4 : 8 }}>
               <View style={{
                 width: 36, height: 36, borderRadius: 12,
                 backgroundColor: isComplete || isActive ? `${phase.color}22` : theme.bgInput,
                 alignItems: 'center', justifyContent: 'center',
                 borderWidth: 1, borderColor: isComplete || isActive ? phase.color : theme.border,
               }}>
-                <AppText style={{ fontSize: 17 }}>{isLocked ? '🔒' : phase.icon}</AppText>
+                <AppText style={{ fontSize: 17 }}>{phase.icon}</AppText>
               </View>
               <View style={{ flex: 1 }}>
                 <AppText style={{ color: theme.textMuted, fontSize: fs(10), fontWeight: '700', letterSpacing: 0.5 }}>
@@ -221,8 +284,24 @@ export default function PrepJourneyCard({ theme, fs, bat, sessions, navigation, 
               )}
             </View>
 
-            {/* Phase 1 — Oiling: only phase with its own action button */}
-            {phase.id === 'oiling' && !isLocked && !isComplete && (
+            {/* Inactive phase — not yet recommended but user can skip to it */}
+            {isInactive && (
+              <View style={{ marginLeft: 46 }}>
+                <AppText style={{ color: theme.textSub, fontSize: fs(11), marginBottom: 6 }}>
+                  Complete previous phases first, or skip directly to here.
+                </AppText>
+                <TouchableOpacity onPress={() => skipPhase(phase, index)}
+                  style={{ borderWidth: 1, borderColor: theme.border, borderRadius: 10,
+                           padding: 8, alignItems: 'center', backgroundColor: theme.bgInput }}>
+                  <AppText style={{ color: theme.textMuted, fontSize: fs(12), fontWeight: '700' }}>
+                    ⟩ Skip to This Phase
+                  </AppText>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Phase 1 — Oiling */}
+            {phase.id === 'oiling' && !isInactive && !isComplete && (
               <View style={{ marginLeft: 46 }}>
                 <AppText style={{ color: theme.textSub, fontSize: fs(12), lineHeight: 18, marginBottom: 10 }}>
                   {phase.desc}
@@ -233,26 +312,43 @@ export default function PrepJourneyCard({ theme, fs, bat, sessions, navigation, 
                       {oilingExpired() ? 'Ready! Tap below to confirm.' : formatOilingStatus()}
                     </AppText>
                     <TouchableOpacity onPress={markOilingComplete}
-                      style={{ backgroundColor: phase.color, borderRadius: 10, padding: 10, alignItems: 'center' }}>
+                      style={{ backgroundColor: phase.color, borderRadius: 10, padding: 10,
+                               alignItems: 'center', marginBottom: 8 }}>
                       <AppText style={{ color: '#fff', fontSize: fs(13), fontWeight: '700' }}>
                         ✓ Mark Oiling Complete
                       </AppText>
                     </TouchableOpacity>
+                    <TouchableOpacity onPress={() => skipPhase(phase, index)}
+                      style={{ borderWidth: 1, borderColor: theme.border, borderRadius: 10,
+                               padding: 8, alignItems: 'center', backgroundColor: theme.bgInput }}>
+                      <AppText style={{ color: theme.textMuted, fontSize: fs(12), fontWeight: '700' }}>
+                        ⟩ Skip — Start Knocking Now
+                      </AppText>
+                    </TouchableOpacity>
                   </>
                 ) : (
-                  <TouchableOpacity onPress={startOiling}
-                    style={{ backgroundColor: phase.color, borderRadius: 10, padding: 10, alignItems: 'center' }}>
-                    <AppText style={{ color: '#fff', fontSize: fs(13), fontWeight: '700' }}>
-                      Apply Oil — Start Soaking
-                    </AppText>
-                  </TouchableOpacity>
+                  <>
+                    <TouchableOpacity onPress={startOiling}
+                      style={{ backgroundColor: phase.color, borderRadius: 10, padding: 10,
+                               alignItems: 'center', marginBottom: 8 }}>
+                      <AppText style={{ color: '#fff', fontSize: fs(13), fontWeight: '700' }}>
+                        Apply Oil — Start Soaking
+                      </AppText>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => skipPhase(phase, index)}
+                      style={{ borderWidth: 1, borderColor: theme.border, borderRadius: 10,
+                               padding: 8, alignItems: 'center', backgroundColor: theme.bgInput }}>
+                      <AppText style={{ color: theme.textMuted, fontSize: fs(12), fontWeight: '700' }}>
+                        ⟩ Skip Oiling — Start Knocking Now
+                      </AppText>
+                    </TouchableOpacity>
+                  </>
                 )}
               </View>
             )}
 
-            {/* Phases 2-4 — status only, no buttons. Knocking starts from the
-                single Start Knocking Session button further down the page. */}
-            {phase.type === 'session' && !isLocked && !isComplete && (
+            {/* Phases 2-4 — progress + manual completion */}
+            {phase.type === 'session' && !isInactive && !isComplete && (
               <View style={{ marginLeft: 46 }}>
                 <AppText style={{ color: theme.textSub, fontSize: fs(12), lineHeight: 18, marginBottom: 8 }}>
                   {phase.desc}
@@ -265,9 +361,20 @@ export default function PrepJourneyCard({ theme, fs, bat, sessions, navigation, 
                       <AppText style={{ color: theme.textMuted, fontSize: fs(11), marginBottom: 6 }}>
                         {progress.minutes}/{phase.targetMinutes} min logged
                       </AppText>
-                      <View style={{ height: 5, backgroundColor: theme.border, borderRadius: 3 }}>
+                      <View style={{ height: 5, backgroundColor: theme.border, borderRadius: 3, marginBottom: 12 }}>
                         <View style={{ height: 5, width: `${pct}%`, backgroundColor: phase.color, borderRadius: 3 }} />
                       </View>
+                      <TouchableOpacity
+                        onPress={() => markPhaseComplete(phase)}
+                        style={{
+                          borderWidth: 1, borderColor: phase.color, borderRadius: 10,
+                          padding: 9, alignItems: 'center', marginBottom: 8,
+                          backgroundColor: `${phase.color}18`,
+                        }}>
+                        <AppText style={{ color: phase.color, fontSize: fs(12), fontWeight: '700' }}>
+                          ✓ Mark Phase as Complete
+                        </AppText>
+                      </TouchableOpacity>
                     </>
                   );
                 })()}
