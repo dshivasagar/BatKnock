@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { BlurView } from 'expo-blur';
 import {
   View, Text, ScrollView, TouchableOpacity,
@@ -68,8 +68,53 @@ export default function HomeScreen({ navigation }) {
   const [recentSessions, setRecentSessions] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [showKnockGuide, setShowKnockGuide] = useState(false);
+  const [showChooseGuide, setShowChooseGuide] = useState(false);
+  const [chooseCardIndex, setChooseCardIndex] = useState(0);
   const [cardIndex, setCardIndex] = useState(0);
   const [showMyBats, setShowMyBats] = useState(true);
+
+  // Weather — fetched from wttr.in (free, no API key needed)
+  const [weather, setWeather] = useState(null);
+  const [weatherLoading, setWeatherLoading] = useState(false);
+
+  useEffect(() => { fetchWeather(); }, []);
+
+  const fetchWeather = async () => {
+    setWeatherLoading(true);
+    try {
+      // wttr.in provides free weather data by location name or coords.
+      // Using a fixed location query here; swap to expo-location coords
+      // once expo-location is installed for precise device location.
+      const res = await fetch('https://wttr.in/?format=j1', { timeout: 5000 });
+      const data = await res.json();
+      const current = data.current_condition?.[0];
+      if (current) {
+        setWeather({
+          temp:      parseInt(current.temp_C),
+          humidity:  parseInt(current.humidity),
+          feelsLike: parseInt(current.FeelsLikeC),
+          desc:      current.weatherDesc?.[0]?.value || '',
+          icon:      getWeatherIcon(parseInt(current.weatherCode)),
+        });
+      }
+    } catch (e) {
+      // Silently fail — weather is supplementary info, not critical
+    } finally {
+      setWeatherLoading(false);
+    }
+  };
+
+  const getWeatherIcon = (code) => {
+    if (code === 113) return '☀️';
+    if (code <= 116) return '⛅';
+    if (code <= 122) return '☁️';
+    if (code <= 143) return '🌫️';
+    if (code <= 176) return '🌦️';
+    if (code <= 260) return '🌧️';
+    if (code <= 299) return '⛈️';
+    if (code <= 395) return '❄️';
+    return '🌡️';
+  };
   const [shortcuts, setShortcuts] = useState(['profile', 'mybats', null]);
   const [showShortcutPicker, setShowShortcutPicker] = useState(false);
   const [editingSlot, setEditingSlot] = useState(0);
@@ -106,6 +151,36 @@ export default function HomeScreen({ navigation }) {
     { num: '5', text: 'Repeat oiling and knocking 4–6 times before using in a match.' },
   ];
 
+  // "How to Choose the Right Cricket Bat" — written in our own words, our
+  // own structure, summarising the same five factors that genuinely matter
+  // when picking a bat (size, weight/pickup, sweet spot, willow, profile).
+  const chooseBatSteps = [
+    {
+      num: '1', icon: '📏', title: 'Get the Size Right First',
+      text: 'Size is the foundation — get it wrong and nothing else matters. A bat that\u2019s too big slows your swing and tires your arms over a long innings. Quick check: stand the bat upright beside you — the top of the handle should sit roughly level with your hip bone. If it sits noticeably higher, size down.',
+    },
+    {
+      num: '2', icon: '⚖️', title: 'Weight & Pickup',
+      text: 'The number on the label matters less than how the bat actually feels in your hands. Pickup is how light or heavy a bat swings based on where the weight sits through the blade — a well-balanced 2lb 10oz bat can feel lighter than a poorly balanced 2lb 7oz one. Shadow swing it 15–20 times: if your wrists strain or your backlift drops, it\u2019s too heavy for you.',
+    },
+    {
+      num: '3', icon: '🎯', title: 'Sweet Spot Position',
+      text: 'Most modern bats hit well across a similar zone, so sweet spot position mostly affects balance and feel rather than power. A lower sweet spot tends to feel easier to manoeuvre and suits front-foot play. A higher sweet spot favours back-foot, aggressive batting on bouncier pitches. A mid sweet spot is the safest all-round starting point.',
+    },
+    {
+      num: '4', icon: '🌿', title: 'English vs Kashmir Willow',
+      text: 'English willow is softer and more fibrous, giving better rebound and that distinctive sound off the bat — it\u2019s the standard for serious leather-ball cricket. Kashmir willow is denser and tougher, making it a solid, affordable choice for beginners and heavy net use. Both need knocking in before match use.',
+    },
+    {
+      num: '5', icon: '🏏', title: 'Bat Profile — Power vs Control',
+      text: 'Profile is the physical shape of the blade. Thicker edges and a higher spine put more wood behind the ball for raw power, suiting white-ball cricket. Thinner edges and a flatter spine give better control and a lighter, more manoeuvrable feel, suiting classical technique and the longer format.',
+    },
+    {
+      num: '6', icon: '✅', title: 'Putting It All Together',
+      text: 'No single spec makes a bat right for you — it\u2019s the combination. Correct size, a pickup that feels natural, a sweet spot that matches how you play, the right willow for your level, and a profile suited to your game. When in doubt, the feel in your hands always tells you more than the numbers on the label.',
+    },
+  ];
+
   // App-level workflow guide — how to use Knockmate itself, distinct from
   // the bat-knocking technique guide above.
   const howToUseSteps = [
@@ -120,12 +195,13 @@ export default function HomeScreen({ navigation }) {
   const ALL_SHORTCUTS = [
     { id: 'activity',  label: 'Recent Sessions', icon: '📋', bg: '#1a1a2a', screen: 'ActivityLog' },
     { id: 'trends',    label: 'Trends',          icon: '📈', bg: '#1a2a1a', screen: 'Trends' },
-    { id: 'season',    label: 'Season Guide',    icon: '🌍', bg: '#1a2a2a', screen: 'SeasonGuide' },
+    { id: 'knockin',   label: 'How to Knock',    icon: '📖', bg: '#2a1a3a', action: 'guide' },
     { id: 'profile',   label: 'Profile',         icon: '👤', bg: '#2a1a2a', screen: 'Profile' },
+    { id: 'choosebat', label: 'Choose Your Bat', icon: '🧭', bg: '#3a2a1a', action: 'chooseguide' },
+    { id: 'batsearch', label: 'Bat Search',      icon: '🔍', bg: '#1a2a3a', screen: 'BatSearch' },
     { id: 'batcare',   label: 'Bat Care',        icon: '📚', bg: '#1e3a5f', screen: 'Guide' },
-    { id: 'mictest',   label: 'Mic Test',        icon: '🎙️', bg: '#1a2a3a', screen: 'MicTest' },
-    { id: 'knockin',   label: 'Knock-In Guide',  icon: '📖', bg: '#2a1a3a', action: 'guide' },
-    { id: 'mybats',    label: 'My Bats',          icon: '🏏', bg: '#1e3a5f', screen: 'Bats' },
+    { id: 'mybats',    label: 'My Bats',         icon: '🏏', bg: '#1e3a5f', screen: 'Bats' },
+    { id: 'season',    label: 'Season Guide',    icon: '🌍', bg: '#1a2a2a', screen: 'SeasonGuide' },
   ];
 
   const saveShortcuts = async (newShortcuts) => {
@@ -173,7 +249,7 @@ export default function HomeScreen({ navigation }) {
               Knockmate
             </Text>
             <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: F.sm, marginTop: 2 }}>
-              Cricket Bat Prep & Knocking Tracker
+              All in One Cricket Bat Prep and Companion
             </Text>
           </View>
           <TouchableOpacity
@@ -198,19 +274,67 @@ export default function HomeScreen({ navigation }) {
 
 
 
+        {/* ── WEATHER STRIP ────────────────────────────────────────────────── */}
+        {(weather || weatherLoading) && (
+          <View style={{ marginHorizontal: 16, marginBottom: 16 }}>
+            <View style={{
+              backgroundColor: theme.bgCard, borderRadius: 16,
+              borderWidth: 1, borderColor: theme.border,
+              flexDirection: 'row', alignItems: 'center',
+              paddingHorizontal: 16, paddingVertical: 12, gap: 0,
+            }}>
+              {weatherLoading ? (
+                <Text style={{ color: theme.textMuted, fontSize: F.sm }}>Loading weather…</Text>
+              ) : weather ? (
+                <>
+                  {/* Icon + description */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                    <Text style={{ fontSize: 28 }}>{weather.icon}</Text>
+                    <View>
+                      <Text style={{ color: theme.text, fontSize: F.xs, fontWeight: '600' }}>
+                        {weather.desc}
+                      </Text>
+                      <Text style={{ color: theme.textMuted, fontSize: F.xs }}>
+                        Feels like {weather.feelsLike}°C
+                      </Text>
+                    </View>
+                  </View>
+                  {/* Temperature gauge */}
+                  <View style={{ alignItems: 'center', paddingHorizontal: 14,
+                                 borderLeftWidth: 1, borderLeftColor: theme.border }}>
+                    <Text style={{ color: theme.accent, fontSize: F.lg, fontWeight: '800' }}>
+                      {weather.temp}°
+                    </Text>
+                    <Text style={{ color: theme.textMuted, fontSize: 10, fontWeight: '600' }}>TEMP</Text>
+                  </View>
+                  {/* Humidity gauge */}
+                  <View style={{ alignItems: 'center', paddingHorizontal: 14,
+                                 borderLeftWidth: 1, borderLeftColor: theme.border }}>
+                    <Text style={{ color: '#60a5fa', fontSize: F.lg, fontWeight: '800' }}>
+                      {weather.humidity}%
+                    </Text>
+                    <Text style={{ color: theme.textMuted, fontSize: 10, fontWeight: '600' }}>HUMIDITY</Text>
+                  </View>
+                </>
+              ) : null}
+            </View>
+          </View>
+        )}
+
         {/* ── QUICK ACTIONS ────────────────────────────────────────────────── */}
         <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
           <Text style={S.sectionLabel}>QUICK ACTIONS</Text>
           <View style={{ flexDirection: 'row', gap: 10 }}>
             {[
-              { label: 'Bat Care',  icon: '📚', bg: '#1e3a5f', screen: 'Guide' },
-              { label: 'Knock-In',  icon: '📖', bg: '#2a1a3a', action: 'guide' },
-              { label: 'Mic Test',  icon: '🎙️', bg: '#1a2a3a', screen: 'MicTest' },
+              { label: 'Choose Your Bat', icon: '🧭', bg: '#3a2a1a', action: 'chooseguide' },
+              { label: 'Bat Search',      icon: '🔍', bg: '#1a2a3a', screen: 'BatSearch' },
+              { label: 'Bat Care',        icon: '📚', bg: '#1e3a5f', screen: 'Guide' },
             ].map(item => (
               <GradientCard key={item.label} style={{ flex: 1 }}
-                onPress={() => item.action === 'guide'
-                  ? (setCardIndex(0), setShowKnockGuide(true))
-                  : navigation.navigate(item.screen)}>
+                onPress={() => {
+                  if (item.action === 'chooseguide') { setChooseCardIndex(0); setShowChooseGuide(true); }
+                  else navigation.navigate(item.screen);
+                }}>
                 <View style={{ paddingVertical: 18, alignItems: 'center', gap: 8 }}>
                   <View style={{
                     width: 48, height: 48, borderRadius: 14,
@@ -249,9 +373,11 @@ export default function HomeScreen({ navigation }) {
               const item = ALL_SHORTCUTS.find(s => s.id === shortcutId);
               return item ? (
                 <GradientCard key={idx} style={{ flex: 1 }}
-                  onPress={() => item.action === 'guide'
-                    ? (setCardIndex(0), setShowKnockGuide(true))
-                    : navigation.navigate(item.screen)}>
+                  onPress={() => {
+                    if (item.action === 'guide') { setCardIndex(0); setShowKnockGuide(true); }
+                    else if (item.action === 'chooseguide') { setChooseCardIndex(0); setShowChooseGuide(true); }
+                    else navigation.navigate(item.screen);
+                  }}>
                   <View style={{ paddingVertical: 18, alignItems: 'center', gap: 8 }}>
                     <View style={{ width: 48, height: 48, borderRadius: 14,
                                    backgroundColor: item.bg, alignItems: 'center', justifyContent: 'center' }}>
@@ -354,7 +480,7 @@ export default function HomeScreen({ navigation }) {
                 { label: 'Trends & History', icon: '📈', bg: '#1a2a1a', screen: 'Trends' },
                 { label: 'Activity Log',     icon: '📋', bg: '#1a1a2a', screen: 'ActivityLog' },
                 { label: 'Season Guide',     icon: '🌍', bg: '#1a2a2a', screen: 'SeasonGuide' },
-                { label: 'Mic Test',         icon: '🎙️', bg: '#2a1a1a', screen: 'MicTest' },
+                { label: 'Bat Search',         icon: '🔍', bg: '#2a1a1a', screen: 'BatSearch' },
               ].map((link, idx, arr) => (
                 <TouchableOpacity key={link.label} activeOpacity={0.7}
                   style={{
@@ -474,7 +600,7 @@ export default function HomeScreen({ navigation }) {
             <View style={{ flexDirection: 'row', alignItems: 'center',
                            justifyContent: 'space-between', marginBottom: 24 }}>
               <Text style={{ color: theme.text, fontSize: 18, fontWeight: '800' }}>
-                How to Knock-In a Bat
+                How to Knock
               </Text>
               <TouchableOpacity onPress={() => setShowKnockGuide(false)}
                 style={{ width: 32, height: 32, borderRadius: 16,
@@ -563,6 +689,124 @@ export default function HomeScreen({ navigation }) {
               ) : (
                 <TouchableOpacity
                   onPress={() => setShowKnockGuide(false)}
+                  style={{
+                    flex: 1, padding: 16, borderRadius: 14, alignItems: 'center',
+                    backgroundColor: theme.accent,
+                  }}>
+                  <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>✓ Done</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Choose the Right Bat Guide Flashcard Modal ───────────────────── */}
+      <Modal
+        visible={showChooseGuide}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowChooseGuide(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)',
+                       justifyContent: 'flex-end' }}>
+          <View style={{
+            backgroundColor: theme.bgCard,
+            borderTopLeftRadius: 28, borderTopRightRadius: 28,
+            padding: 24, paddingBottom: 44,
+            borderWidth: 1, borderColor: theme.border,
+            minHeight: '78%',
+          }}>
+            <View style={{ width: 40, height: 4, borderRadius: 2,
+                           backgroundColor: theme.border, alignSelf: 'center',
+                           marginBottom: 20 }} />
+
+            <View style={{ flexDirection: 'row', alignItems: 'center',
+                           justifyContent: 'space-between', marginBottom: 8 }}>
+              <Text style={{ color: theme.text, fontSize: 18, fontWeight: '800', flex: 1 }}>
+                How to Choose the Right Bat
+              </Text>
+              <TouchableOpacity onPress={() => setShowChooseGuide(false)}
+                style={{ width: 32, height: 32, borderRadius: 16,
+                         backgroundColor: theme.bgInput, borderWidth: 1,
+                         borderColor: theme.border,
+                         alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ color: theme.textMuted, fontSize: 16, fontWeight: '700' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={{ color: theme.textSub, fontSize: 12, marginBottom: 20 }}>
+              The five things that actually matter when picking a bat
+            </Text>
+
+            {/* Step dots */}
+            <View style={{ flexDirection: 'row', gap: 6, justifyContent: 'center', marginBottom: 24 }}>
+              {chooseBatSteps.map((_, i) => (
+                <TouchableOpacity key={i} onPress={() => setChooseCardIndex(i)}>
+                  <View style={{
+                    width: chooseCardIndex === i ? 24 : 8, height: 8,
+                    borderRadius: 4,
+                    backgroundColor: chooseCardIndex === i ? theme.accent : theme.border,
+                  }} />
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Flashcard */}
+            <View style={{
+              flex: 1, backgroundColor: theme.bgInput,
+              borderRadius: 20, padding: 26,
+              borderWidth: 1, borderColor: theme.border,
+              alignItems: 'center', justifyContent: 'center',
+              minHeight: 260,
+            }}>
+              <Text style={{ fontSize: 34, marginBottom: 14 }}>
+                {chooseBatSteps[chooseCardIndex]?.icon}
+              </Text>
+              <Text style={{
+                color: theme.accent, fontSize: 15, fontWeight: '800',
+                textAlign: 'center', marginBottom: 14,
+              }}>
+                {chooseBatSteps[chooseCardIndex]?.title}
+              </Text>
+              <Text style={{
+                color: theme.text, fontSize: 14, fontWeight: '500',
+                textAlign: 'center', lineHeight: 22,
+              }}>
+                {chooseBatSteps[chooseCardIndex]?.text}
+              </Text>
+              <Text style={{
+                color: theme.textMuted, fontSize: 11, fontWeight: '700',
+                letterSpacing: 1, marginTop: 18,
+              }}>
+                {chooseCardIndex + 1} OF {chooseBatSteps.length}
+              </Text>
+            </View>
+
+            {/* Navigation buttons */}
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 20 }}>
+              <TouchableOpacity
+                onPress={() => setChooseCardIndex(i => Math.max(0, i - 1))}
+                disabled={chooseCardIndex === 0}
+                style={{
+                  flex: 1, padding: 16, borderRadius: 14, alignItems: 'center',
+                  backgroundColor: theme.bgInput,
+                  borderWidth: 1, borderColor: theme.border,
+                  opacity: chooseCardIndex === 0 ? 0.4 : 1,
+                }}>
+                <Text style={{ color: theme.text, fontSize: 15, fontWeight: '700' }}>← Previous</Text>
+              </TouchableOpacity>
+
+              {chooseCardIndex < chooseBatSteps.length - 1 ? (
+                <TouchableOpacity
+                  onPress={() => setChooseCardIndex(i => Math.min(chooseBatSteps.length - 1, i + 1))}
+                  style={{
+                    flex: 1, padding: 16, borderRadius: 14, alignItems: 'center',
+                    backgroundColor: theme.accent,
+                  }}>
+                  <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>Next →</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  onPress={() => setShowChooseGuide(false)}
                   style={{
                     flex: 1, padding: 16, borderRadius: 14, alignItems: 'center',
                     backgroundColor: theme.accent,

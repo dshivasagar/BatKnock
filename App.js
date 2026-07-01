@@ -18,6 +18,7 @@ import TrendsScreen from './screens/TrendsScreen';
 import ActivityLogScreen from './screens/ActivityLogScreen';
 import BatCareScreen from './screens/BatCareScreen';
 import MicTestScreen from './screens/MicTestScreen';
+import BatSearchScreen from './screens/BatSearchScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -91,6 +92,7 @@ function AppNavigator() {
           <Stack.Screen name="Heatmap" component={HeatmapScreen} />
           <Stack.Screen name="ActivityLog" component={ActivityLogScreen} />
           <Stack.Screen name="MicTest" component={MicTestScreen} />
+          <Stack.Screen name="BatSearch" component={BatSearchScreen} />
           <Stack.Screen name="SeasonGuide" component={SeasonGuideScreen} />
           <Stack.Screen name="Profile" component={ProfileScreen} />
           <Stack.Screen name="PrepTimer" component={PrepTimerScreen} />

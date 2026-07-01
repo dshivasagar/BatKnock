@@ -22,42 +22,35 @@ import {
 } from "../storage/database";
 import { getPhaseTargetMinutes } from "../utils/targets";
 
-// ─── ADAPTIVE TRANSIENT KNOCK DETECTION ──────────────────────
-// A knock = sudden jump (>= JUMP_DB) above an adaptive background
-// baseline AND loud enough in absolute terms (>= floor). Baseline
-// adapts to room noise/voice automatically — works without calibration.
+// ─── KNOCK DETECTION — dBFS ADAPTIVE BASELINE ────────────────
+//
+// Restored to the original approach that was working:
+// - Works directly in dBFS (expo-av metering values, no conversion needed)
+// - Adaptive baseline tracks room noise via fast EMA (alpha=0.25)
+// - A knock = sudden jump ≥ JUMP_DB above the adaptive baseline
+//           AND db ≥ floor (set by voice calibration or default)
+// - DEBOUNCE_MS prevents resonance double-counting
+//
+// Key fix vs original: FLOOR_DB lowered from -22 to -40, and calibration
+// cap lowered from -16 to -32. The old floor rejected quiet knocks
+// (arm's length recordings peak at -30 to -40 dBFS).
 
-const POLL_MS = 15;
-const DEBOUNCE_MS = 400; // min gap — prevents resonance double-count
-const JUMP_DB = 12;
-const FLOOR_DB = -22;
-const BASELINE_ALPHA = 0.25;
-const RESET_FLOOR_DB = -60;
-const DEFAULT_THRESHOLD = 0.15;
-
-// ── Force classification — DECAY TIME based, not peak amplitude ──────────
-// Real recordings showed peak dB saturates near the mic's max regardless
-// of force (soft/medium/hard all peaked around -0.5dB), making amplitude
-// unreliable. Resonance DECAY TIME scales cleanly with force instead:
-//   Soft knock:   ~25ms to decay 20dB from peak
-//   Medium knock: ~55ms to decay 20dB from peak
-//   Hard knock:   ~75ms to decay 20dB from peak
-// We track how many consecutive frames stay "loud" (within 20dB of the
-// peak) after a knock onset, then classify by that duration.
-const DECAY_FRAME_MS = POLL_MS; // ~15ms per check
-const DECAY_LIGHT_MAX  = 3;  // <= 3 frames (~45ms)  = light
-const DECAY_MEDIUM_MAX = 5;  // <= 5 frames (~75ms)  = medium
-// > 5 frames (~75ms+) = hard/full
+const POLL_MS        = 15;
+const DEBOUNCE_MS    = 400;    // raised from 250 — covers bat resonance tail (up to 345ms measured)
+const JUMP_DB        = 12;     // dB jump above adaptive baseline required
+const FLOOR_DB       = -40;    // absolute minimum dBFS (was -22 — too strict)
+const BASELINE_ALPHA = 0.25;   // fast baseline: tracks room noise in ~60ms
+const RESET_FLOOR_DB = -60;    // initial baseline value
 
 // Phase definitions — targetMinutes is computed per-bat from the bat's own
 // target_minutes (set in Create/Edit Bat), split 20/30/50 across Light/
-// Medium/Full. Previously this was a fixed 60/90/120 for every bat.
+// Medium/Full.
 function getPhaseConfig(bat) {
   const t = getPhaseTargetMinutes(bat?.target_minutes);
   return {
-    light:  { label: 'Light Knocking',  num: 2, targetMinutes: t.light,  color: '#60a5fa', forceZone: 0 },
-    medium: { label: 'Medium Knocking', num: 3, targetMinutes: t.medium, color: '#a78bfa', forceZone: 1 },
-    full:   { label: 'Full Knocking',   num: 4, targetMinutes: t.full,   color: '#34d399', forceZone: 2 },
+    light:  { label: 'Light Knocking',  num: 2, targetMinutes: t.light,  color: '#60a5fa' },
+    medium: { label: 'Medium Knocking', num: 3, targetMinutes: t.medium, color: '#a78bfa' },
+    full:   { label: 'Full Knocking',   num: 4, targetMinutes: t.full,   color: '#34d399' },
   };
 }
 
@@ -89,7 +82,7 @@ export default function KnockingSessionScreen({ navigation, route }) {
   const [hasPermission, setHasPermission] = useState(false);
 
   const [calibStep, setCalibStep] = useState("idle");
-  const [calibThreshold, setCalibThreshold] = useState(DEFAULT_THRESHOLD);
+  const [calibThreshold, setCalibThreshold] = useState(FLOOR_DB);
   const [calibMessage, setCalibMessage] = useState("");
   const [voicePeak, setVoicePeak] = useState(0);
 
@@ -102,23 +95,8 @@ export default function KnockingSessionScreen({ navigation, route }) {
   const sessionIdRef = useRef(generateId());
   const batPointsRef = useRef([]);
 
-  const thresholdRef = useRef(DEFAULT_THRESHOLD);
   const baselineRef = useRef(RESET_FLOOR_DB);
-  const floorRef = useRef(FLOOR_DB);
-
-  // ── Decay-time tracking for force classification ─────────────────────
-  const peakDbRef = useRef(-100);
-  const decayFrameCountRef = useRef(0);
-  const trackingDecayRef = useRef(false);
-
-  // ── Force feedback state ──────────────────────────────────────────────
-  const [forceLevel, setForceLevel] = useState(0);
-  const [forceFeedback, setForceFeedback] = useState('');
-  const lastFeedbackRef = useRef(0);
-  const softStreakRef = useRef(0);
-  const FEEDBACK_THROTTLE = 3000;
-  // Target force zone for this session (0=light,1=medium,2=full); null = no target
-  const targetForceZone = phaseConfig ? phaseConfig.forceZone : null;
+  const floorRef    = useRef(FLOOR_DB);
 
   // ── Cumulative phase time tracking (for auto-complete) ────────────────
   const [priorPhaseMinutes, setPriorPhaseMinutes] = useState(0);
@@ -195,19 +173,19 @@ export default function KnockingSessionScreen({ navigation, route }) {
       if (samples.length > 0) {
         const sorted = [...samples].sort((a, b) => a - b);
         const voiceMaxDb = sorted[Math.floor(sorted.length * 0.95)];
-        const newFloor = Math.max(FLOOR_DB, Math.min(voiceMaxDb + 4, -16));
+        // Floor = voice peak + 4dB margin, capped at -32dBFS.
+        // Original cap was -16dBFS which blocked quiet knocks — now -32.
+        const newFloor = Math.max(FLOOR_DB, Math.min(voiceMaxDb + 4, -32));
         floorRef.current = newFloor;
-
-        const linear = Math.max(0, Math.min(1, (newFloor + 80) / 80));
-        thresholdRef.current = linear;
-        setCalibThreshold(linear);
-        setVoicePeak(Math.max(0, Math.min(1, (voiceMaxDb + 80) / 80)));
+        const linear = Math.max(0, Math.min(1, (newFloor + 60) / 60));
+        setCalibThreshold(newFloor);
+        setVoicePeak(Math.max(0, Math.min(1, (voiceMaxDb + 60) / 60)));
         setCalibStep("done");
         setCalibMessage(
-          voiceMaxDb < -34 ? "Quiet room — excellent sensitivity!" :
-          voiceMaxDb < -28 ? "Normal voice level — good calibration" :
-          voiceMaxDb < -22 ? "Loud voice — floor raised accordingly" :
-          "Very loud surroundings — knock firmly for best results"
+          voiceMaxDb < -40 ? "Very quiet room — excellent sensitivity!" :
+          voiceMaxDb < -30 ? "Normal environment — good detection" :
+          voiceMaxDb < -22 ? "Moderately noisy — knock firmly for best results" :
+          "Noisy environment — move somewhere quieter if knocks are missed"
         );
       } else {
         setCalibStep("idle");
@@ -230,49 +208,17 @@ export default function KnockingSessionScreen({ navigation, route }) {
     await saveBatPoints(bat.id, points);
   };
 
-  // ─── DETECTION + DECAY-TIME FORCE CLASSIFICATION ─────────────────────
+  // ─── KNOCK DETECTION ─────────────────────────────────────────────────
+  // Original dBFS adaptive baseline approach — restored after amplitude
+  // experiments caused detection to fail on device.
+  // knock = jump ≥ JUMP_DB above adaptive baseline AND db ≥ floor
   const processLevel = useCallback((db) => {
     if (db === undefined || db === null || !isFinite(db)) return;
-    const now = Date.now();
+    const now      = Date.now();
     const baseline = baselineRef.current;
-    const floor = floorRef.current;
-    const jump = db - baseline;
-
-    // ── Track decay while inside a knock's resonance tail ──────────────
-    if (trackingDecayRef.current) {
-      if (db >= peakDbRef.current - 20) {
-        decayFrameCountRef.current += 1;
-      } else {
-        // Decay finished — classify force by how long it rang out
-        const frames = decayFrameCountRef.current;
-        trackingDecayRef.current = false;
-
-        const zoneIdx = frames <= DECAY_LIGHT_MAX ? 0 : frames <= DECAY_MEDIUM_MAX ? 1 : 2;
-        const normForce = Math.max(0, Math.min(1, frames / 8));
-        setForceLevel(normForce);
-
-        if (targetForceZone !== null && now - lastFeedbackRef.current > FEEDBACK_THROTTLE) {
-          if (zoneIdx > targetForceZone) {
-            setForceFeedback('too_hard');
-            Vibration.vibrate([0, 30, 80, 30]);
-            lastFeedbackRef.current = now;
-            softStreakRef.current = 0;
-          } else if (zoneIdx < targetForceZone) {
-            softStreakRef.current += 1;
-            if (softStreakRef.current >= 8) {
-              setForceFeedback('too_soft');
-              lastFeedbackRef.current = now;
-              softStreakRef.current = 0;
-            }
-          } else {
-            setForceFeedback('good');
-            softStreakRef.current = 0;
-          }
-        }
-      }
-    }
-
-    const isKnock = jump >= JUMP_DB && db >= floor;
+    const floor    = floorRef.current;
+    const jump     = db - baseline;
+    const isKnock  = jump >= JUMP_DB && db >= floor;
 
     if (isKnock) {
       if (now - lastKnockRef.current > DEBOUNCE_MS) {
@@ -281,21 +227,22 @@ export default function KnockingSessionScreen({ navigation, route }) {
         setKnockCount(knockCountRef.current);
         Vibration.vibrate(15);
         recordKnock();
-
-        // Start tracking this knock's decay envelope
-        peakDbRef.current = db;
-        decayFrameCountRef.current = 0;
-        trackingDecayRef.current = true;
+        // Push baseline up to near the knock level so the resonance tail
+        // no longer looks like a jump. Without this, baseline stays at -60
+        // while resonance sits at -30, giving jump=30 that re-triggers
+        // as soon as the debounce expires.
+        baselineRef.current = db - 3;
       }
+      // Don't update baseline during knock/resonance
     } else {
       baselineRef.current = BASELINE_ALPHA * db + (1 - BASELINE_ALPHA) * baseline;
     }
-  }, [targetForceZone]);
+  }, []);
 
   // ─── RECORDING ────────────────────────────────────────────────────────
   const startRecording = async () => {
     baselineRef.current = RESET_FLOOR_DB;
-    inKnockRef.current = false;
+    inKnockRef.current  = false;
     loudFramesRef.current = 0;
     await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
     const { recording } = await Audio.Recording.createAsync(
@@ -544,8 +491,7 @@ export default function KnockingSessionScreen({ navigation, route }) {
                 <Text style={{ color: '#fff', fontWeight: "800", fontSize: fs(14) }}>Start Calibration</Text>
               </TouchableOpacity>
               <Text style={{ color: theme.textMuted, fontSize: fs(12), textAlign: "center" }}>
-                Current threshold: {thresholdPct}%
-                {calibThreshold === DEFAULT_THRESHOLD ? " (default — calibrate for better results)" : ""}
+                Current threshold: {(calibThreshold * 1000).toFixed(1)}
               </Text>
             </>
           )}
@@ -639,39 +585,6 @@ export default function KnockingSessionScreen({ navigation, route }) {
           >
             <Text style={{ color: theme.text, fontSize: fs(16), fontWeight: "700" }}>+ 1</Text>
           </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Force Feedback Bar — only shown when session has a phase target */}
-      {isRunning && phaseConfig && (
-        <View style={{ marginHorizontal: 20, marginBottom: 10 }}>
-          <View style={{ height: 8, backgroundColor: theme.border, borderRadius: 4, overflow: 'hidden' }}>
-            <View style={{
-              height: 8, width: `${Math.round(forceLevel * 100)}%`,
-              backgroundColor:
-                forceFeedback === 'too_hard' ? theme.red :
-                forceFeedback === 'too_soft' ? theme.blue : phaseConfig.color,
-              borderRadius: 4,
-            }} />
-          </View>
-          {forceFeedback === 'too_hard' && (
-            <View style={{ marginTop: 8, backgroundColor: `${theme.red}22`, borderRadius: 8, padding: 8,
-                           flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={{ fontSize: 14 }}>⚠️</Text>
-              <Text style={{ color: theme.red, fontSize: fs(12), fontWeight: '700', flex: 1 }}>
-                Ease up — too hard for {phaseConfig.label}. Softer knocks protect the willow fibres.
-              </Text>
-            </View>
-          )}
-          {forceFeedback === 'too_soft' && (
-            <View style={{ marginTop: 8, backgroundColor: `${theme.blue}22`, borderRadius: 8, padding: 8,
-                           flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={{ fontSize: 14 }}>💪</Text>
-              <Text style={{ color: theme.blue, fontSize: fs(12), fontWeight: '700', flex: 1 }}>
-                You can knock a little harder — you're in {phaseConfig.label}.
-              </Text>
-            </View>
-          )}
         </View>
       )}
 

@@ -31,7 +31,7 @@ const OILING_DURATION_SECONDS = 24 * 60 * 60;
  */
 function getPhases(bat) {
   const t = getPhaseTargetMinutes(bat?.target_minutes);
-  return [
+  const allPhases = [
     {
       id: 'oiling', num: 1, icon: '🛢️', title: 'Oiling',
       type: 'soak', duration: OILING_DURATION_SECONDS,
@@ -57,6 +57,11 @@ function getPhases(bat) {
       color: '#34d399',
     },
   ];
+  // Knocking-only bats skip oiling — go straight to the knocking phases
+  if (bat?.bat_purpose === 'knocking_only') {
+    return allPhases.filter(p => p.id !== 'oiling').map((p, i) => ({ ...p, num: i + 1 }));
+  }
+  return allPhases;
 }
 
 async function requestPermissions() {
@@ -92,9 +97,10 @@ export async function getCurrentPhase(batId, bat) {
   return { phase: null, index: phases.length, journey }; // all complete
 }
 
-export default function PrepJourneyCard({ theme, fs, bat, sessions, navigation, route }) {
+export default function PrepJourneyCard({ theme, fs, bat, sessions, navigation, route, onJourneyUpdate }) {
   const [journey, setJourney] = useState({});
   const [now, setNow] = useState(Date.now());
+  const [expanded, setExpanded] = useState(false);   // collapsed by default
   const phases = getPhases(bat);
 
   useEffect(() => {
@@ -117,6 +123,9 @@ export default function PrepJourneyCard({ theme, fs, bat, sessions, navigation, 
   const saveJourney = async (updated) => {
     await AsyncStorage.setItem(`${JOURNEY_KEY}_${bat.id}`, JSON.stringify(updated));
     setJourney(updated);
+    // Notify parent (BatProfileScreen) so it can refresh activePhase immediately
+    // — without this, the Start Knocking button doesn't update until screen refocus
+    onJourneyUpdate?.();
   };
 
   const handleAutoComplete = async (phaseId) => {
@@ -240,14 +249,41 @@ export default function PrepJourneyCard({ theme, fs, bat, sessions, navigation, 
     return (now - data.startTime) / 1000 >= OILING_DURATION_SECONDS;
   };
 
+  // Current phase label for collapsed view
+  const currentPhaseLabel = (() => {
+    for (let i = 0; i < phases.length; i++) {
+      const s = getPhaseStatus(phases[i], i);
+      if (s !== 'complete') return `${phases[i].icon} ${phases[i].title}`;
+    }
+    return '✅ Journey Complete';
+  })();
+
   return (
     <View style={{ marginHorizontal: 16, marginBottom: 12, backgroundColor: theme.bgCard,
-                   borderRadius: 16, padding: 16, borderWidth: 1, borderColor: theme.border }}>
-      <AppText style={{ color: theme.textMuted, fontSize: fs(11), fontWeight: '700',
-                        letterSpacing: 0.5, marginBottom: 14 }}>
-        BAT PREPARATION JOURNEY
-      </AppText>
+                   borderRadius: 16, borderWidth: 1, borderColor: theme.border, overflow: 'hidden' }}>
 
+      {/* Collapsible header — always visible */}
+      <TouchableOpacity
+        onPress={() => setExpanded(e => !e)}
+        style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                 padding: 16 }}>
+        <View>
+          <AppText style={{ color: theme.textMuted, fontSize: fs(11), fontWeight: '700',
+                            letterSpacing: 0.5 }}>BAT PREPARATION JOURNEY</AppText>
+          {!expanded && (
+            <AppText style={{ color: theme.text, fontSize: fs(13), fontWeight: '600', marginTop: 3 }}>
+              {currentPhaseLabel}
+            </AppText>
+          )}
+        </View>
+        <AppText style={{ color: theme.textMuted, fontSize: fs(14) }}>
+          {expanded ? '▲' : '▼'}
+        </AppText>
+      </TouchableOpacity>
+
+      {/* Expandable body */}
+      {expanded && (
+        <View style={{ paddingHorizontal: 16, paddingBottom: 16 }}>
       {phases.map((phase, index) => {
         const status = getPhaseStatus(phase, index);
         const isInactive = status === 'inactive';
@@ -383,6 +419,8 @@ export default function PrepJourneyCard({ theme, fs, bat, sessions, navigation, 
           </View>
         );
       })}
+        </View>
+      )}
     </View>
   );
 }

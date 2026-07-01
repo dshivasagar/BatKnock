@@ -23,9 +23,16 @@ import { useTheme } from '../ThemeContext';
 import NavBar from '../components/NavBar';
 import AppText from '../components/AppText';
 import { SEASON_DATA, CONTINENT_ICONS, findCountry, isInSeason, MONTHS } from '../data/seasonData';
+import * as Notifications from 'expo-notifications';
 
-const PROFILE_KEY = 'batknock_profile';
-const COUNTRY_KEY = 'batknock_selected_country'; // shared with Season Guide
+const PROFILE_KEY  = 'batknock_profile';
+const COUNTRY_KEY  = 'batknock_selected_country';
+const SEASON_KEY   = 'batknock_season_dates';
+const NOTIF_KEY    = 'batknock_season_notif_id';
+
+const MONTH_NAMES  = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const CURRENT_YEAR = new Date().getFullYear();
+const YEARS        = [CURRENT_YEAR, CURRENT_YEAR + 1, CURRENT_YEAR + 2];
 
 const GENDER_OPTIONS = ['Male', 'Female', 'Other', 'Prefer not to say'];
 const AGE_RANGES = ['Under 16', '16–24', '25–34', '35–44', '45–54', '55+'];
@@ -33,12 +40,16 @@ const AGE_RANGES = ['Under 16', '16–24', '25–34', '35–44', '45–54', '55+
 export default function ProfileScreen({ navigation }) {
   const { theme, fs } = useTheme();
 
-  const [country, setCountry] = useState(null);
-  const [gender, setGender]   = useState(null);
+  const [country, setCountry]   = useState(null);
+  const [gender, setGender]     = useState(null);
   const [ageRange, setAgeRange] = useState(null);
   const [countryPickerOpen, setCountryPickerOpen] = useState(false);
-  const [search, setSearch] = useState('');
-  const [loaded, setLoaded] = useState(false);
+  const [search, setSearch]     = useState('');
+  const [loaded, setLoaded]     = useState(false);
+
+  // Season dates
+  const [seasonStart, setSeasonStart] = useState(null); // { month: 1-12, year: YYYY }
+  const [seasonEnd,   setSeasonEnd]   = useState(null);
 
   // ── Load saved profile ────────────────────────────────────────────────
   useEffect(() => {
@@ -50,27 +61,81 @@ export default function ProfileScreen({ navigation }) {
         setGender(p.gender || null);
         setAgeRange(p.ageRange || null);
       } else {
-        // Fall back to Season Guide's country if profile not set yet
         const c = await AsyncStorage.getItem(COUNTRY_KEY);
         if (c) setCountry(c);
+      }
+      const seasonRaw = await AsyncStorage.getItem(SEASON_KEY);
+      if (seasonRaw) {
+        const { start, end } = JSON.parse(seasonRaw);
+        if (start) setSeasonStart(start);
+        if (end)   setSeasonEnd(end);
       }
       setLoaded(true);
     })();
   }, []);
 
-  // ── Save profile (called whenever a field changes) ──────────────────────
+  // ── Save profile ──────────────────────────────────────────────────────
   const saveProfile = async (updates) => {
     const next = {
-      country: updates.country !== undefined ? updates.country : country,
-      gender: updates.gender !== undefined ? updates.gender : gender,
+      country:  updates.country  !== undefined ? updates.country  : country,
+      gender:   updates.gender   !== undefined ? updates.gender   : gender,
       ageRange: updates.ageRange !== undefined ? updates.ageRange : ageRange,
     };
     await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(next));
-    // Keep Season Guide's key in sync
-    if (next.country) {
-      await AsyncStorage.setItem(COUNTRY_KEY, next.country);
+    if (next.country) await AsyncStorage.setItem(COUNTRY_KEY, next.country);
+  };
+
+  // ── Season dates + notification ───────────────────────────────────────
+  const saveSeasonDates = async (start, end) => {
+    await AsyncStorage.setItem(SEASON_KEY, JSON.stringify({ start, end }));
+
+    // Cancel previous notification
+    const prevId = await AsyncStorage.getItem(NOTIF_KEY);
+    if (prevId) {
+      try { await Notifications.cancelScheduledNotificationAsync(prevId); } catch (_) {}
+      await AsyncStorage.removeItem(NOTIF_KEY);
+    }
+
+    if (!start) return;
+
+    // Schedule notification 1 month before season start
+    let notifMonth = start.month - 1;
+    let notifYear  = start.year;
+    if (notifMonth === 0) { notifMonth = 12; notifYear -= 1; }
+
+    const notifDate = new Date(notifYear, notifMonth - 1, 1, 9, 0, 0);
+    if (notifDate > new Date()) {
+      const { status } = await Notifications.requestPermissionsAsync();
+      if (status === 'granted') {
+        const id = await Notifications.scheduleNotificationAsync({
+          content: {
+            title: '🏏 Cricket Season Approaching!',
+            body: `Your season starts next month. Get your bat knocked in and ready now!`,
+            sound: true,
+          },
+          trigger: { date: notifDate },
+        });
+        await AsyncStorage.setItem(NOTIF_KEY, id);
+      }
     }
   };
+
+  const pickSeasonMonth = (which, month) => {
+    const current = which === 'start' ? seasonStart : seasonEnd;
+    const updated = { month, year: current?.year || CURRENT_YEAR };
+    if (which === 'start') { setSeasonStart(updated); saveSeasonDates(updated, seasonEnd); }
+    else                   { setSeasonEnd(updated);   saveSeasonDates(seasonStart, updated); }
+  };
+
+  const pickSeasonYear = (which, year) => {
+    const current = which === 'start' ? seasonStart : seasonEnd;
+    const updated = { month: current?.month || 1, year };
+    if (which === 'start') { setSeasonStart(updated); saveSeasonDates(updated, seasonEnd); }
+    else                   { setSeasonEnd(updated);   saveSeasonDates(seasonStart, updated); }
+  };
+
+  const formatSeasonDate = (d) =>
+    d ? `${MONTH_NAMES[d.month - 1]} ${d.year}` : 'Not set';
 
   const selectCountry = (name) => {
     setCountry(name);
@@ -261,6 +326,72 @@ export default function ProfileScreen({ navigation }) {
               </AppText>
             </TouchableOpacity>
           ))}
+        </View>
+
+        {/* ── Season Dates ──────────────────────────────────────────────── */}
+        <View style={{ backgroundColor: theme.bgCard, borderRadius: 16, padding: 16,
+                       borderWidth: 1, borderColor: theme.border, marginBottom: 12 }}>
+          <AppText style={{ color: theme.textMuted, fontSize: fs(11), fontWeight: '700',
+                            letterSpacing: 0.5, marginBottom: 4 }}>CRICKET SEASON</AppText>
+          <AppText style={{ color: theme.textSub, fontSize: fs(12), marginBottom: 16, lineHeight: 18 }}>
+            Set your season dates and we'll remind you 1 month before to start bat preparation.
+          </AppText>
+
+          {(['start', 'end']).map(which => {
+            const val     = which === 'start' ? seasonStart : seasonEnd;
+            const setVal  = which === 'start' ? setSeasonStart : setSeasonEnd;
+            const label   = which === 'start' ? 'SEASON START' : 'SEASON END';
+            return (
+              <View key={which} style={{ marginBottom: 16 }}>
+                <AppText style={{ color: theme.textMuted, fontSize: fs(11), fontWeight: '700',
+                                  letterSpacing: 0.5, marginBottom: 8 }}>{label}</AppText>
+                <AppText style={{ color: theme.accent, fontSize: fs(15), fontWeight: '700',
+                                  marginBottom: 10 }}>{formatSeasonDate(val)}</AppText>
+
+                {/* Month picker */}
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                  {MONTH_NAMES.map((m, i) => (
+                    <TouchableOpacity key={m}
+                      onPress={() => pickSeasonMonth(which, i + 1)}
+                      style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
+                               backgroundColor: val?.month === i + 1 ? `${theme.accent}22` : theme.bgInput,
+                               borderWidth: 1,
+                               borderColor: val?.month === i + 1 ? theme.accent : theme.border }}>
+                      <AppText style={{ color: val?.month === i + 1 ? theme.accent : theme.text,
+                                        fontSize: fs(11), fontWeight: '600' }}>{m}</AppText>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {/* Year picker */}
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {YEARS.map(y => (
+                    <TouchableOpacity key={y}
+                      onPress={() => pickSeasonYear(which, y)}
+                      style={{ flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center',
+                               backgroundColor: val?.year === y ? `${theme.accent}22` : theme.bgInput,
+                               borderWidth: 1,
+                               borderColor: val?.year === y ? theme.accent : theme.border }}>
+                      <AppText style={{ color: val?.year === y ? theme.accent : theme.text,
+                                        fontSize: fs(13), fontWeight: '700' }}>{y}</AppText>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            );
+          })}
+
+          {seasonStart && (
+            <View style={{ backgroundColor: `${theme.accent}11`, borderRadius: 10, padding: 10,
+                           flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <AppText style={{ fontSize: fs(14) }}>🔔</AppText>
+              <AppText style={{ color: theme.text, fontSize: fs(12), flex: 1 }}>
+                You'll be reminded in {MONTH_NAMES[(seasonStart.month - 2 + 12) % 12]} {
+                  seasonStart.month === 1 ? seasonStart.year - 1 : seasonStart.year
+                } to prepare your bat.
+              </AppText>
+            </View>
+          )}
         </View>
 
         {/* Clear profile */}

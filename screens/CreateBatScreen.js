@@ -25,6 +25,7 @@ export default function CreateBatScreen({ navigation, route }) {
   const [weight,        setWeight]        = useState(editing?.weight?.toString()        || '');
   const [grains,        setGrains]        = useState(editing?.grains?.toString()        || '');
   const [notes,         setNotes]         = useState(editing?.notes         || '');
+  const [batPurpose,    setBatPurpose]    = useState(editing?.bat_purpose   || 'new_bat');
   const [targetType,    setTargetType]    = useState(editing?.target_type   || 'knock_count');
   const [targetKnocks,  setTargetKnocks]  = useState(editing?.target_knocks?.toString()  || '5000');
   const [targetMinutes, setTargetMinutes] = useState(editing?.target_minutes?.toString() || '120');
@@ -53,6 +54,7 @@ export default function CreateBatScreen({ navigation, route }) {
       weight:        weight  ? parseInt(weight)  : null,
       grains:        grains  ? parseInt(grains)  : null,
       notes:         notes.trim(),
+      bat_purpose:      batPurpose,
       target_type:      targetType,
       target_knocks:    resolved.target_knocks,
       target_minutes:   resolved.target_minutes,
@@ -146,6 +148,38 @@ export default function CreateBatScreen({ navigation, route }) {
               placeholder="8" placeholderTextColor={theme.textMuted}
               keyboardType="numeric" />
           </View>
+        </View>
+
+        {/* Bat purpose — drives which journey phases are shown */}
+        <Text style={label}>BAT PURPOSE</Text>
+        <View style={{ gap: 8 }}>
+          {[
+            { id: 'new_bat',       icon: '🏏', title: 'New Bat',        desc: 'Full prep journey — Oiling → Light → Medium → Full knocking' },
+            { id: 'season_old',    icon: '🔄', title: 'Season Old Bat', desc: 'Re-season an existing bat — full oiling + knocking journey' },
+            { id: 'knocking_only', icon: '🔨', title: 'Knocking Only',  desc: 'No phase guidance — just knock. No oiling, no force targets, no journey steps.' },
+          ].map(opt => (
+            <TouchableOpacity key={opt.id}
+              onPress={() => setBatPurpose(opt.id)}
+              style={{
+                backgroundColor: batPurpose === opt.id ? theme.accentDim : theme.bgCard,
+                borderRadius: 12, padding: 14, flexDirection: 'row', alignItems: 'center',
+                borderWidth: 1.5, borderColor: batPurpose === opt.id ? theme.accent : theme.border,
+                gap: 12,
+              }}>
+              <Text style={{ fontSize: 22 }}>{opt.icon}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: batPurpose === opt.id ? theme.accent : theme.text,
+                               fontSize: fs(14), fontWeight: '700' }}>{opt.title}</Text>
+                <Text style={{ color: theme.textSub, fontSize: fs(11), marginTop: 2 }}>{opt.desc}</Text>
+              </View>
+              {batPurpose === opt.id && (
+                <View style={{ width: 20, height: 20, borderRadius: 10,
+                               backgroundColor: theme.accent, alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ color: '#fff', fontSize: 12, fontWeight: '800' }}>✓</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          ))}
         </View>
 
         {/* Target type */}

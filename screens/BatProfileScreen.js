@@ -24,6 +24,9 @@ import { getBatById, getSessionsByBat, saveBat, deleteBat,
 import AppText from '../components/AppText';
 import PrepJourneyCard, { getCurrentPhase } from '../components/PrepJourneyCard';
 import { getLearnedRateKPM, knocksToMinutes, minutesToKnocks } from '../utils/targets';
+import { getBatReportData, generateReportHTML } from '../utils/generateBatReport';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 
 async function enhanceBatPhoto(uri) {
   try {
@@ -51,6 +54,7 @@ export default function BatProfileScreen({ navigation, route }) {
   const [machineKnocks, setMachineKnocks] = useState('');
   const [machinePhase, setMachinePhase] = useState('light'); // light | medium | full
   const [machineLogging, setMachineLogging] = useState(false);
+  const [reportLoading, setReportLoading] = useState(false);
 
   const loadData = async () => {
     if (bat?.id) {
@@ -131,6 +135,11 @@ export default function BatProfileScreen({ navigation, route }) {
 
   // ── Single knocking entry point — phase-aware ──────────────────────────
   const handleStartSession = () => {
+    // Knocking Only bats have no phase guidance — launch free session directly
+    if (bat?.bat_purpose === 'knocking_only') {
+      navigation.navigate('KnockingSession', { bat });
+      return;
+    }
     if (!activePhase) {
       Alert.alert('All phases complete', 'This bat has finished its preparation journey. Start a free session anytime.', [
         { text: 'Free Session', onPress: () => navigation.navigate('KnockingSession', { bat, zone: 'sweet-spot' }) },
@@ -143,6 +152,29 @@ export default function BatProfileScreen({ navigation, route }) {
       return;
     }
     navigation.navigate('KnockingSession', { bat, phaseType: activePhase.phaseType });
+  };
+
+  // Share a Bat Preparation Certificate as a PDF
+  // Useful for selling the bat on marketplaces (eBay, Facebook etc.)
+  const shareReport = async () => {
+    setReportLoading(true);
+    try {
+      const batPoints = await getBatPoints(bat.id);
+      const allSessions = await getSessionsByBat(bat.id);
+      const reportData = await getBatReportData(bat, allSessions, batPoints || []);
+      const html = generateReportHTML(reportData);
+      const { uri } = await Print.printToFileAsync({ html, base64: false });
+      await Sharing.shareAsync(uri, {
+        mimeType: 'application/pdf',
+        dialogTitle: `${bat.name || bat.brand} — Bat Preparation Report`,
+        UTI: 'com.adobe.pdf',
+      });
+    } catch (e) {
+      Alert.alert('Report Error', 'Could not generate the report. Please try again.\n\n' + e.message);
+      console.error('shareReport error:', e);
+    } finally {
+      setReportLoading(false);
+    }
   };
 
   // Open machine knocking modal — pre-select the current active phase
@@ -224,7 +256,9 @@ export default function BatProfileScreen({ navigation, route }) {
     }
   };
 
-  const startButtonLabel = !activePhase
+  const startButtonLabel = bat?.bat_purpose === 'knocking_only'
+    ? '⚡ Start Knocking Session'
+    : !activePhase
     ? '⚡ Start Knocking Session'
     : activePhase.type === 'soak'
     ? '🛢️ Bat Still Oiling'
@@ -234,21 +268,27 @@ export default function BatProfileScreen({ navigation, route }) {
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.bg }}>
       <NavBar navigation={navigation} title={bat?.name && bat.name !== bat?.brand ? bat.name : (bat?.brand || 'Bat')}
         right={
-          <View style={{ flexDirection: 'row', gap: 8 }}>
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            <NavButton type="custom"
+              onPress={() => navigation.navigate('Heatmap', { bat })}
+              style={{ backgroundColor: theme.bgInput, borderColor: theme.border }}>
+              <AppText style={{ fontSize: fs(15) }}>🔥</AppText>
+            </NavButton>
+            <NavButton type="custom"
+              onPress={shareReport}
+              style={{ backgroundColor: theme.bgInput, borderColor: theme.border,
+                       opacity: reportLoading ? 0.5 : 1 }}>
+              <AppText style={{ fontSize: fs(15) }}>📋</AppText>
+            </NavButton>
             <NavButton type="home" onPress={() => navigation.navigate('Main')} />
             <NavButton type="custom"
               onPress={() => Alert.alert('Delete Bat', 'This will delete the bat and all its sessions.', [
                 { text: 'Cancel', style: 'cancel' },
-                {
-                  text: 'Delete', style: 'destructive',
-                  onPress: async () => {
-                    await deleteBat(bat.id);
-                    navigation.navigate('Main');
-                  },
-                },
+                { text: 'Delete', style: 'destructive',
+                  onPress: async () => { await deleteBat(bat.id); navigation.navigate('Main'); } },
               ])}
               style={{ backgroundColor: '#3a1a1a', borderColor: theme.red }}>
-              <AppText style={{ fontSize: fs(16) }}>🗑</AppText>
+              <AppText style={{ fontSize: fs(15) }}>🗑</AppText>
             </NavButton>
           </View>
         }
@@ -364,23 +404,41 @@ export default function BatProfileScreen({ navigation, route }) {
         </View>
 
         {/* ── Bat Preparation Journey (status only) ─────────────────────── */}
-        <PrepJourneyCard theme={theme} fs={fs} bat={bat} sessions={sessions} navigation={navigation} route={route} />
+        {bat?.bat_purpose === 'knocking_only' ? (
+          <View style={{ marginHorizontal: 16, marginBottom: 12, backgroundColor: theme.bgCard,
+                         borderRadius: 16, padding: 16, borderWidth: 1, borderColor: theme.border,
+                         flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <AppText style={{ fontSize: 28 }}>🔨</AppText>
+            <View style={{ flex: 1 }}>
+              <AppText style={{ color: theme.text, fontSize: fs(14), fontWeight: '700' }}>
+                Free Knocking Mode
+              </AppText>
+              <AppText style={{ color: theme.textSub, fontSize: fs(12), marginTop: 2, lineHeight: 17 }}>
+                No phase guidance — knock at any force, any time. Heatmap tracks zone coverage.
+              </AppText>
+            </View>
+          </View>
+        ) : (
+          <PrepJourneyCard theme={theme} fs={fs} bat={bat} sessions={sessions} navigation={navigation} route={route} onJourneyUpdate={loadData} />
+        )}
 
         {/* ── Start Session — SINGLE entry point, phase-aware ─────────────── */}
         <View style={{ marginHorizontal: 16, marginBottom: 8 }}>
           <TouchableOpacity
-            disabled={activePhase?.type === 'soak'}
+            disabled={bat?.bat_purpose !== 'knocking_only' && activePhase?.type === 'soak'}
             style={{
-              backgroundColor: activePhase?.type === 'soak' ? theme.bgInput : theme.accent,
+              backgroundColor: (bat?.bat_purpose !== 'knocking_only' && activePhase?.type === 'soak')
+                ? theme.bgInput : theme.accent,
               borderRadius: 14, padding: 18, alignItems: 'center',
               flexDirection: 'row', justifyContent: 'center', gap: 8,
-              borderWidth: activePhase?.type === 'soak' ? 1 : 0,
+              borderWidth: (bat?.bat_purpose !== 'knocking_only' && activePhase?.type === 'soak') ? 1 : 0,
               borderColor: theme.border,
-              opacity: activePhase?.type === 'soak' ? 0.6 : 1,
+              opacity: (bat?.bat_purpose !== 'knocking_only' && activePhase?.type === 'soak') ? 0.6 : 1,
             }}
             onPress={handleStartSession}>
             <AppText style={{
-              color: activePhase?.type === 'soak' ? theme.textSub : '#fff',
+              color: (bat?.bat_purpose !== 'knocking_only' && activePhase?.type === 'soak')
+                ? theme.textSub : '#fff',
               fontSize: fs(16), fontWeight: '800',
             }}>
               {startButtonLabel}
@@ -388,7 +446,6 @@ export default function BatProfileScreen({ navigation, route }) {
           </TouchableOpacity>
         </View>
 
-        {/* ── Log Machine / External Knocking ─────────────────────────────── */}
         <View style={{ marginHorizontal: 16, marginBottom: 12 }}>
           <TouchableOpacity
             onPress={openMachineModal}
@@ -401,16 +458,6 @@ export default function BatProfileScreen({ navigation, route }) {
             <AppText style={{ color: theme.text, fontSize: fs(14), fontWeight: '700' }}>
               Log Machine / External Knocking
             </AppText>
-          </TouchableOpacity>
-        </View>
-
-        {/* ── View Heatmap ────────────────────────────────────────────────── */}
-        <View style={{ marginHorizontal: 16, marginBottom: 12 }}>
-          <TouchableOpacity
-            style={{ backgroundColor: theme.bgCard, borderRadius: 14, padding: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 10, borderWidth: 1, borderColor: theme.border }}
-            onPress={() => navigation.navigate('Heatmap', { bat, pct })}>
-            <AppText style={{ color: '#ff6b35', fontSize: fs(18) }}>◉</AppText>
-            <AppText style={{ color: theme.text, fontSize: fs(15), fontWeight: '700' }}>View Heatmap</AppText>
           </TouchableOpacity>
         </View>
 
