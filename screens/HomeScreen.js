@@ -9,6 +9,13 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../ThemeContext';
 import { getBats, getSessions, getOverallStats } from '../storage/database';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { usePro } from '../contexts/ProContext';
+import AdBanner from '../components/AdBanner';
+
+// ── DEVELOPER TESTING FLAG ─────────────────────────────────────────────────
+// Set to false before App Store / Play Store submission to hide the
+// Pro testing controls from users.
+const DEV_MODE = true;
 
 // ── Squircle icon component (Apple-style coloured icon tile) ─────────────────
 function IconTile({ emoji, bg, size = 52 }) {
@@ -63,6 +70,8 @@ function GradientCard({ children, style, onPress }) {
 
 export default function HomeScreen({ navigation }) {
   const { theme, mode, setMode, fs, fontScale, setFontScale } = useTheme();
+  const { isPro, showUpgrade, activatePro, deactivatePro } = usePro();
+  const resetToPro = deactivatePro;
   const [stats, setStats] = useState({ totalBats: 0, totalSessions: 0, totalKnocks: 0 });
   const [bats, setBats] = useState([]);
   const [recentSessions, setRecentSessions] = useState([]);
@@ -359,7 +368,10 @@ export default function HomeScreen({ navigation }) {
               alignItems: 'center', flexDirection: 'row',
               justifyContent: 'center', gap: 8,
             }}
-            onPress={() => navigation.navigate('CreateBat')}>
+            onPress={() => {
+                if (!isPro && bats.length >= 2) { showUpgrade(); return; }
+                navigation.navigate('CreateBat');
+              }}>
             <Text style={{ color: '#fff', fontSize: F.xl, fontWeight: '800', lineHeight: F.xl }}>+</Text>
             <Text style={{ color: '#fff', fontSize: F.md, fontWeight: '700' }}>Add New Bat</Text>
           </TouchableOpacity>
@@ -893,6 +905,41 @@ export default function HomeScreen({ navigation }) {
                   ))}
                 </View>
 
+                {/* ── DEV TESTING — remove before submission ── */}
+                {DEV_MODE && (
+                  <View style={{ marginBottom: 24 }}>
+                    <Text style={{ color: '#f59e0b', fontSize: 11, fontWeight: '700',
+                                   letterSpacing: 1, marginBottom: 12 }}>
+                      🧪 DEVELOPER TESTING
+                    </Text>
+                    <View style={{ backgroundColor: '#1a1200', borderRadius: 14,
+                                   borderWidth: 1, borderColor: '#f59e0b44',
+                                   padding: 14, gap: 10 }}>
+                      <Text style={{ color: '#f59e0b', fontSize: 11,
+                                     marginBottom: 4, lineHeight: 16 }}>
+                        Toggle Pro status locally. No payment is taken.{'\n'}
+                        Set DEV_MODE = false in HomeScreen.js before submitting to stores.
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => activatePro()}
+                        style={{ backgroundColor: '#16a34a22', borderRadius: 10,
+                                 padding: 12, alignItems: 'center',
+                                 borderWidth: 1, borderColor: '#16a34a' }}>
+                        <Text style={{ color: '#16a34a', fontSize: 14,
+                                       fontWeight: '700' }}>🔓 Unlock Pro (Test)</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => resetToPro(false)}
+                        style={{ backgroundColor: '#dc262622', borderRadius: 10,
+                                 padding: 12, alignItems: 'center',
+                                 borderWidth: 1, borderColor: '#dc2626' }}>
+                        <Text style={{ color: '#dc2626', fontSize: 14,
+                                       fontWeight: '700' }}>🔒 Reset to Free (Test)</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+
                 {/* Done button */}
                 <TouchableOpacity onPress={() => setShowThemeModal(false)}
                   style={{ backgroundColor: theme.accent, borderRadius: 14,
@@ -905,6 +952,7 @@ export default function HomeScreen({ navigation }) {
         </TouchableWithoutFeedback>
       </Modal>
 
+      <AdBanner />
     </SafeAreaView>
   );
 }

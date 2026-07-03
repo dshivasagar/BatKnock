@@ -27,6 +27,7 @@ import { getLearnedRateKPM, knocksToMinutes, minutesToKnocks } from '../utils/ta
 import { getBatReportData, generateReportHTML } from '../utils/generateBatReport';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import { usePro } from '../contexts/ProContext';
 
 async function enhanceBatPhoto(uri) {
   try {
@@ -42,6 +43,7 @@ async function enhanceBatPhoto(uri) {
 
 export default function BatProfileScreen({ navigation, route }) {
   const { theme, fs } = useTheme();
+  const { isPro, showUpgrade } = usePro();
   const [bat, setBat] = useState(route.params?.bat);
   const [sessions, setSessions] = useState([]);
   const [sessionHistoryExpanded, setSessionHistoryExpanded] = useState(true);
@@ -275,7 +277,7 @@ export default function BatProfileScreen({ navigation, route }) {
               <AppText style={{ fontSize: fs(15) }}>🔥</AppText>
             </NavButton>
             <NavButton type="custom"
-              onPress={shareReport}
+              onPress={() => isPro ? shareReport() : showUpgrade()}
               style={{ backgroundColor: theme.bgInput, borderColor: theme.border,
                        opacity: reportLoading ? 0.5 : 1 }}>
               <AppText style={{ fontSize: fs(15) }}>📋</AppText>
@@ -448,7 +450,7 @@ export default function BatProfileScreen({ navigation, route }) {
 
         <View style={{ marginHorizontal: 16, marginBottom: 12 }}>
           <TouchableOpacity
-            onPress={openMachineModal}
+            onPress={() => isPro ? openMachineModal() : showUpgrade()}
             style={{
               backgroundColor: theme.bgCard, borderRadius: 14, padding: 14,
               alignItems: 'center', flexDirection: 'row', justifyContent: 'center',
@@ -458,6 +460,7 @@ export default function BatProfileScreen({ navigation, route }) {
             <AppText style={{ color: theme.text, fontSize: fs(14), fontWeight: '700' }}>
               Log Machine / External Knocking
             </AppText>
+            {!isPro && <AppText style={{ fontSize: fs(12) }}>🔒</AppText>}
           </TouchableOpacity>
         </View>
 

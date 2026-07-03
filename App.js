@@ -20,7 +20,10 @@ import BatCareScreen from './screens/BatCareScreen';
 import MicTestScreen from './screens/MicTestScreen';
 import BatSearchScreen from './screens/BatSearchScreen';
 
-const Tab = createBottomTabNavigator();
+import { ProProvider } from './contexts/ProContext';
+
+
+const Tab   = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
 function MainTabs() {
@@ -104,11 +107,12 @@ function AppNavigator() {
 }
 
 export default function App() {
-  // Fonts not loaded yet — using system font (SF Pro / Roboto)
   return (
     <SafeAreaProvider>
       <ThemeProvider fontsLoaded={false}>
-        <AppNavigator />
+        <ProProvider>
+          <AppNavigator />
+        </ProProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

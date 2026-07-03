@@ -8,6 +8,7 @@ import AppText from '../components/AppText';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getCurrentPhase } from '../components/PrepJourneyCard';
 import { getPhaseTargetMinutes } from '../utils/targets';
+import { usePro } from '../contexts/ProContext';
 
 const PHASE_META = {
   light:  { label: 'Light',  icon: '🔨', color: '#60a5fa' },
@@ -24,6 +25,7 @@ const CURRENT_PHASE_BADGE = {
 
 export default function TrendsScreen({ navigation }) {
   const { theme, fs } = useTheme();
+  const { isPro, showUpgrade } = usePro();
   const [sessions, setSessions]   = useState([]);
   const [bats, setBats]           = useState([]);
   const [batPhases, setBatPhases] = useState({});
@@ -86,7 +88,30 @@ export default function TrendsScreen({ navigation }) {
         <AppText style={{ color: theme.textMuted, fontSize: fs(11), fontWeight: '700',
                           letterSpacing: 0.5, marginBottom: 10 }}>YOUR BATS</AppText>
 
-        {bats.map(bat => {
+        {/* Per-bat cards — Pro only */}
+        {!isPro ? (
+          <TouchableOpacity onPress={showUpgrade}
+            style={{ backgroundColor: theme.bgCard, borderRadius: 16,
+                     borderWidth: 1, borderColor: theme.border, padding: 24,
+                     alignItems: 'center', marginBottom: 10 }}>
+            <AppText style={{ fontSize: 32, marginBottom: 10 }}>🔒</AppText>
+            <AppText style={{ color: theme.text, fontSize: fs(15), fontWeight: '800',
+                              textAlign: 'center', marginBottom: 6 }}>
+              Detailed History is a Pro Feature
+            </AppText>
+            <AppText style={{ color: theme.textSub, fontSize: fs(13), textAlign: 'center',
+                              marginBottom: 16, lineHeight: 20 }}>
+              Upgrade to see per-bat phase progress, session history and zone breakdowns.
+            </AppText>
+            <View style={{ backgroundColor: theme.accent, borderRadius: 12,
+                           paddingHorizontal: 20, paddingVertical: 10 }}>
+              <AppText style={{ color: '#fff', fontSize: fs(13), fontWeight: '700' }}>
+                Unlock Knockmate Pro — £2.99
+              </AppText>
+            </View>
+          </TouchableOpacity>
+        ) : (
+          bats.map(bat => {
           const batSessions  = sessions.filter(s => s.bat_id === bat.id);
           const batKnocks    = batSessions.reduce((sum, s) => sum + (s.knock_count || 0), 0);
           const batTime      = batSessions.reduce((sum, s) => sum + (s.duration_seconds || 0), 0);
@@ -214,7 +239,8 @@ export default function TrendsScreen({ navigation }) {
               })}
             </View>
           );
-        })}
+        })
+        )}
 
         {bats.length === 0 && (
           <AppText style={{ color: theme.textSub, textAlign: 'center', paddingVertical: 30 }}>

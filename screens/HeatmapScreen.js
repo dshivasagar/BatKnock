@@ -25,6 +25,7 @@ import { useTheme } from '../ThemeContext';
 import NavBar from '../components/NavBar';
 import { getBatPoints, saveBat, getBatById } from '../storage/database';
 import AppText from '../components/AppText';
+import { usePro } from '../contexts/ProContext';
 
 const ZONE_LABELS = {
   'sweet-spot': 'Sweet Spot',
@@ -54,6 +55,7 @@ function heatColour(pct) {
 
 export default function HeatmapScreen({ navigation, route }) {
   const { theme, fs } = useTheme();
+  const { isPro, showUpgrade } = usePro();
   const initialBat = route.params?.bat;
   const [bat, setBat]               = useState(initialBat);
   const [points, setPoints]         = useState([]);
@@ -354,10 +356,12 @@ export default function HeatmapScreen({ navigation, route }) {
         subtitle={`${bat?.name || bat?.brand || 'Bat'}`}
         right={
           bat?.photo_uri ? (
-            <TouchableOpacity onPress={startEditing}
+            <TouchableOpacity onPress={() => isPro ? startEditing() : showUpgrade()}
               style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
                        backgroundColor: theme.bgInput, borderWidth: 1, borderColor: theme.border }}>
-              <AppText style={{ color: theme.accent, fontSize: fs(12), fontWeight: '700' }}>✏️ Edit Zones</AppText>
+              <AppText style={{ color: theme.accent, fontSize: fs(12), fontWeight: '700' }}>
+                ✏️ Edit Zones{!isPro ? ' 🔒' : ''}
+              </AppText>
             </TouchableOpacity>
           ) : undefined
         } />

@@ -17,6 +17,7 @@ import * as Notifications from 'expo-notifications';
 import { useFocusEffect } from '@react-navigation/native';
 import AppText from './AppText';
 import { getPhaseTargetMinutes } from '../utils/targets';
+import { usePro } from '../contexts/ProContext';
 
 const JOURNEY_KEY = 'knockmate_journey';
 
@@ -100,7 +101,8 @@ export async function getCurrentPhase(batId, bat) {
 export default function PrepJourneyCard({ theme, fs, bat, sessions, navigation, route, onJourneyUpdate }) {
   const [journey, setJourney] = useState({});
   const [now, setNow] = useState(Date.now());
-  const [expanded, setExpanded] = useState(false);   // collapsed by default
+  const [expanded, setExpanded] = useState(false);
+  const { isPro, showUpgrade } = usePro();
   const phases = getPhases(bat);
 
   useEffect(() => {
@@ -326,7 +328,7 @@ export default function PrepJourneyCard({ theme, fs, bat, sessions, navigation, 
                 <AppText style={{ color: theme.textSub, fontSize: fs(11), marginBottom: 6 }}>
                   Complete previous phases first, or skip directly to here.
                 </AppText>
-                <TouchableOpacity onPress={() => skipPhase(phase, index)}
+                <TouchableOpacity onPress={() => isPro ? skipPhase(phase, index) : showUpgrade()}
                   style={{ borderWidth: 1, borderColor: theme.border, borderRadius: 10,
                            padding: 8, alignItems: 'center', backgroundColor: theme.bgInput }}>
                   <AppText style={{ color: theme.textMuted, fontSize: fs(12), fontWeight: '700' }}>
@@ -354,7 +356,7 @@ export default function PrepJourneyCard({ theme, fs, bat, sessions, navigation, 
                         ✓ Mark Oiling Complete
                       </AppText>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => skipPhase(phase, index)}
+                    <TouchableOpacity onPress={() => isPro ? skipPhase(phase, index) : showUpgrade()}
                       style={{ borderWidth: 1, borderColor: theme.border, borderRadius: 10,
                                padding: 8, alignItems: 'center', backgroundColor: theme.bgInput }}>
                       <AppText style={{ color: theme.textMuted, fontSize: fs(12), fontWeight: '700' }}>
@@ -371,7 +373,7 @@ export default function PrepJourneyCard({ theme, fs, bat, sessions, navigation, 
                         Apply Oil — Start Soaking
                       </AppText>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => skipPhase(phase, index)}
+                    <TouchableOpacity onPress={() => isPro ? skipPhase(phase, index) : showUpgrade()}
                       style={{ borderWidth: 1, borderColor: theme.border, borderRadius: 10,
                                padding: 8, alignItems: 'center', backgroundColor: theme.bgInput }}>
                       <AppText style={{ color: theme.textMuted, fontSize: fs(12), fontWeight: '700' }}>

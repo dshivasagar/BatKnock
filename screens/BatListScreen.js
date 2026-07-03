@@ -6,10 +6,17 @@ import NavBar, { NavButton } from '../components/NavBar';
 import { getBats, deleteBat } from '../storage/database';
 import AppText from '../components/AppText';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { usePro } from '../contexts/ProContext';
+import AdBanner from '../components/AdBanner';
 
 export default function BatListScreen({ navigation }) {
   const { theme, fs } = useTheme();
+  const { isPro, showUpgrade } = usePro();
   const [bats, setBats] = useState([]);
+  const handleAddBat = () => {
+    if (!isPro && bats.length >= 2) { showUpgrade(); return; }
+    navigation.navigate('CreateBat');
+  };
 
   const loadBats = async () => { const data = await getBats(); setBats(data.reverse()); };
   useFocusEffect(useCallback(() => { loadBats(); }, []));
@@ -25,7 +32,7 @@ export default function BatListScreen({ navigation }) {
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.bg }}>
       <NavBar navigation={navigation} title="My Bats"
         right={
-          <NavButton type="custom" onPress={() => navigation.navigate('CreateBat')} accent>
+          <NavButton type="custom" onPress={handleAddBat} accent>
             <AppText style={{ color: '#000', fontSize: fs(20), fontWeight: '800', lineHeight: 24 }}>+</AppText>
           </NavButton>
         }
@@ -37,7 +44,7 @@ export default function BatListScreen({ navigation }) {
             <AppText style={{ fontSize: 48, marginBottom: 16 }}>🏏</AppText>
             <AppText style={{ color: theme.text, fontSize: fs(18), fontWeight: '700' }}>No bats yet</AppText>
             <AppText style={{ color: theme.textSub, fontSize: fs(14), marginTop: 8 }}>Add your first bat to start tracking</AppText>
-            <TouchableOpacity onPress={() => navigation.navigate('CreateBat')}
+            <TouchableOpacity onPress={handleAddBat}
               style={{ backgroundColor: theme.accent, borderRadius: 24, paddingHorizontal: 24, paddingVertical: 12, marginTop: 24 }}>
               <AppText style={{ color: '#000', fontWeight: '800', fontSize: fs(15) }}>Add First Bat</AppText>
             </TouchableOpacity>
@@ -73,6 +80,7 @@ export default function BatListScreen({ navigation }) {
         )}
         <View style={{ height: 20 }} />
       </ScrollView>
+      <AdBanner />
     </SafeAreaView>
   );
 }
