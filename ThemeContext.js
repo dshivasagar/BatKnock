@@ -4,8 +4,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const ThemeContext = createContext();
 
-// Named export so NavBar can import it directly
-// Returns undefined (system font) since custom fonts are not loaded
 export function fontFamily(weight, fontsLoaded) {
   return undefined;
 }
@@ -53,7 +51,8 @@ export const THEMES = {
   },
 };
 
-export function ThemeProvider({ children }) {
+// fontsLoaded is passed in from App.js via useFonts()
+export function ThemeProvider({ children, fontsLoaded = false }) {
   const systemScheme = useColorScheme();
   const [mode,      setMode]      = useState('system');
   const [fontScale, setFontScale] = useState(1.15);
@@ -79,10 +78,14 @@ export function ThemeProvider({ children }) {
   }, [fontScale]);
 
   const fs = (size) => Math.round(size * fontScale);
-  const fontFamily = (weight) => undefined; // placeholder — custom fonts not loaded
+  const fontFamilyFn = (weight) => undefined;
 
   return (
-    <ThemeContext.Provider value={{ theme, mode, setMode, fontScale, setFontScale, fs, fontFamily, fontsLoaded: true }}>
+    <ThemeContext.Provider value={{
+      theme, mode, setMode, fontScale, setFontScale,
+      fs, fontFamily: fontFamilyFn,
+      fontsLoaded,
+    }}>
       {children}
     </ThemeContext.Provider>
   );
