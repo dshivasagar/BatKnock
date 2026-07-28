@@ -148,6 +148,10 @@ export default function App() {
     initAds();
   }, []);
 
+  // Wait for fonts before rendering — without this, AppText renders with
+  // system font before useFonts resolves and never switches to Nunito
+  if (!fontsLoaded) return null;
+
   return (
     <SafeAreaProvider>
       <ThemeProvider fontsLoaded={fontsLoaded ?? false}>
