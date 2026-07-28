@@ -8,7 +8,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, Alert, Modal,
+  View, ScrollView, TouchableOpacity, Alert, Modal,
   TouchableWithoutFeedback,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,6 +18,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../ThemeContext';
 import NavBar from '../components/NavBar';
 import AppText from '../components/AppText';
+const Text = AppText; // Nunito alias
 import { getBats } from '../storage/database';
 
 const STORAGE_KEY     = 'knockmate_prep_timers';

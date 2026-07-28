@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { BlurView } from 'expo-blur';
 import {
-  View, Text, ScrollView, TouchableOpacity,
+  View, ScrollView, TouchableOpacity,
   RefreshControl, StyleSheet, Modal, TouchableWithoutFeedback, Dimensions,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -11,6 +11,10 @@ import { getBats, getSessions, getOverallStats } from '../storage/database';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { usePro } from '../contexts/ProContext';
 import AdBanner from '../components/AdBanner';
+import AppText from '../components/AppText';
+
+// Alias AppText as Text — every existing <Text> in this file gets Nunito automatically
+const Text = AppText;
 
 // ── DEVELOPER TESTING FLAG ─────────────────────────────────────────────────
 // Set to false before App Store / Play Store submission to hide the

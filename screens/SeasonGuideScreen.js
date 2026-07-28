@@ -11,13 +11,14 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, TextInput,
+  View, ScrollView, TouchableOpacity, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../ThemeContext';
 import NavBar from '../components/NavBar';
 import AppText from '../components/AppText';
+const Text = AppText; // Nunito alias
 import { SEASON_DATA, CONTINENT_ICONS, MONTHS, isInSeason } from '../data/seasonData';
 
 const STORAGE_KEY = 'batknock_selected_country';

@@ -1,11 +1,12 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
+import { View, ScrollView, TouchableOpacity } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Audio } from 'expo-av';
 import { useTheme } from '../ThemeContext';
 import NavBar, { NavButton } from '../components/NavBar';
 import { getSessions } from '../storage/database';
 import AppText from '../components/AppText';
+const Text = AppText; // Nunito alias
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 // ─── ACTIVITY LOG ────────────────────────────────────────────

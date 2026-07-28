@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
-  Text,
+
   TouchableOpacity,
   Alert,
   Vibration,
@@ -21,6 +21,8 @@ import {
   getSessionsByBat,
 } from "../storage/database";
 import { getPhaseTargetMinutes } from "../utils/targets";
+import AppText from '../components/AppText';
+const Text = AppText; // Nunito alias
 
 // ─── KNOCK DETECTION — dBFS ADAPTIVE BASELINE ────────────────
 //

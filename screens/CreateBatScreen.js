@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity,
+  View, ScrollView, TouchableOpacity,
   TextInput, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,6 +11,8 @@ import {
   getLearnedRateKPM, resolveTarget,
   knocksToMinutes, minutesToKnocks, formatMinutesAsHours,
 } from '../utils/targets';
+import AppText from '../components/AppText';
+const Text = AppText; // Nunito alias
 
 const BAT_SIZES    = ['Size 4', 'Size 5', 'Size 6', 'Harrow', 'SH', 'LH'];
 const WILLOW_TYPES = ['Grade 1', 'Grade 2', 'Grade 3', 'Kashmir', 'English'];

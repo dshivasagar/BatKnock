@@ -1,10 +1,11 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../ThemeContext';
 import NavBar, { NavButton } from '../components/NavBar';
 import { getBats, deleteBat } from '../storage/database';
 import AppText from '../components/AppText';
+const Text = AppText; // Nunito alias
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { usePro } from '../contexts/ProContext';
 import AdBanner from '../components/AdBanner';

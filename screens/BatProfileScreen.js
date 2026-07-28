@@ -10,7 +10,7 @@
 
 import React, { useState, useCallback } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity,
+  View, ScrollView, TouchableOpacity,
   Alert, Image, ActivityIndicator, Modal, TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -22,6 +22,7 @@ import NavBar, { NavButton } from '../components/NavBar';
 import { getBatById, getSessionsByBat, saveBat, deleteBat,
          saveSession, saveBatPoints, getBatPoints, generateId } from '../storage/database';
 import AppText from '../components/AppText';
+const Text = AppText; // Nunito alias
 import PrepJourneyCard, { getCurrentPhase } from '../components/PrepJourneyCard';
 import { getLearnedRateKPM, knocksToMinutes, minutesToKnocks } from '../utils/targets';
 import { getBatReportData, generateReportHTML } from '../utils/generateBatReport';

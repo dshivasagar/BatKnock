@@ -1,9 +1,11 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../ThemeContext';
 import { getBatPoints, saveBatPoints, generateId } from '../storage/database';
+import AppText from '../components/AppText';
+const Text = AppText; // Nunito alias
 
 const ZONES = [
   { id: 'sweet-spot', label: 'Sweet Spot', desc: 'Main hitting area — face of bat', color: '#00a884' },
