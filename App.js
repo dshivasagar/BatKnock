@@ -1,27 +1,37 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
-import { StatusBar, Text, View, ActivityIndicator } from 'react-native';
+import { StatusBar, Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider, useTheme } from './ThemeContext';
-import HomeScreen from './screens/HomeScreen';
-import SeasonGuideScreen from './screens/SeasonGuideScreen';
-import ProfileScreen from './screens/ProfileScreen';
-import PrepTimerScreen from './screens/PrepTimerScreen';
-import BatListScreen from './screens/BatListScreen';
-import CreateBatScreen from './screens/CreateBatScreen';
-import BatProfileScreen from './screens/BatProfileScreen';
-import KnockingSessionScreen from './screens/KnockingSessionScreen';
-import HeatmapScreen from './screens/HeatmapScreen';
-import TrendsScreen from './screens/TrendsScreen';
-import ActivityLogScreen from './screens/ActivityLogScreen';
-import BatCareScreen from './screens/BatCareScreen';
-import MicTestScreen from './screens/MicTestScreen';
-import BatSearchScreen from './screens/BatSearchScreen';
-
+import {
+  useFonts,
+  Nunito_300Light,
+  Nunito_400Regular,
+  Nunito_500Medium,
+  Nunito_600SemiBold,
+  Nunito_700Bold,
+  Nunito_800ExtraBold,
+  Nunito_900Black,
+} from '@expo-google-fonts/nunito';
 import { ProProvider } from './contexts/ProContext';
+import mobileAds, { AdsConsent, AdsConsentStatus } from 'react-native-google-mobile-ads';
 
+import HomeScreen            from './screens/HomeScreen';
+import SeasonGuideScreen     from './screens/SeasonGuideScreen';
+import ProfileScreen         from './screens/ProfileScreen';
+import PrepTimerScreen       from './screens/PrepTimerScreen';
+import BatListScreen         from './screens/BatListScreen';
+import CreateBatScreen       from './screens/CreateBatScreen';
+import BatProfileScreen      from './screens/BatProfileScreen';
+import KnockingSessionScreen from './screens/KnockingSessionScreen';
+import HeatmapScreen         from './screens/HeatmapScreen';
+import TrendsScreen          from './screens/TrendsScreen';
+import ActivityLogScreen     from './screens/ActivityLogScreen';
+import BatCareScreen         from './screens/BatCareScreen';
+import MicTestScreen         from './screens/MicTestScreen';
+import BatSearchScreen       from './screens/BatSearchScreen';
 
 const Tab   = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -32,7 +42,6 @@ function MainTabs() {
     Home:   { emoji: '🏠', label: 'Home'   },
     Bats:   { emoji: '🏏', label: 'Bats'   },
     Trends: { emoji: '📈', label: 'Trends' },
-
   };
   return (
     <Tab.Navigator
@@ -49,7 +58,7 @@ function MainTabs() {
         },
         tabBarActiveTintColor: theme.accent,
         tabBarInactiveTintColor: theme.textMuted,
-        tabBarIcon: ({ color, focused }) => (
+        tabBarIcon: ({ focused }) => (
           <View style={{
             width: 44, height: 44, borderRadius: 12,
             backgroundColor: focused ? theme.accentDim : 'transparent',
@@ -60,8 +69,8 @@ function MainTabs() {
         ),
       })}
     >
-      <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Bats" component={BatListScreen} />
+      <Tab.Screen name="Home"   component={HomeScreen} />
+      <Tab.Screen name="Bats"   component={BatListScreen} />
       <Tab.Screen name="Trends" component={TrendsScreen} />
     </Tab.Navigator>
   );
@@ -74,9 +83,9 @@ function AppNavigator() {
     colors: {
       ...DefaultTheme.colors,
       background: theme.bg,
-      card: theme.bgHeader,
-      border: theme.border,
-      text: theme.text,
+      card:       theme.bgHeader,
+      border:     theme.border,
+      text:       theme.text,
     },
   };
   return (
@@ -88,18 +97,18 @@ function AppNavigator() {
       />
       <View style={{ flex: 1, backgroundColor: theme.bg }}>
         <Stack.Navigator screenOptions={{ headerShown: false, cardStyle: { backgroundColor: 'transparent' } }}>
-          <Stack.Screen name="Main" component={MainTabs} />
-          <Stack.Screen name="CreateBat" component={CreateBatScreen} />
-          <Stack.Screen name="BatProfile" component={BatProfileScreen} />
+          <Stack.Screen name="Main"            component={MainTabs} />
+          <Stack.Screen name="CreateBat"       component={CreateBatScreen} />
+          <Stack.Screen name="BatProfile"      component={BatProfileScreen} />
           <Stack.Screen name="KnockingSession" component={KnockingSessionScreen} />
-          <Stack.Screen name="Heatmap" component={HeatmapScreen} />
-          <Stack.Screen name="ActivityLog" component={ActivityLogScreen} />
-          <Stack.Screen name="MicTest" component={MicTestScreen} />
-          <Stack.Screen name="BatSearch" component={BatSearchScreen} />
-          <Stack.Screen name="SeasonGuide" component={SeasonGuideScreen} />
-          <Stack.Screen name="Profile" component={ProfileScreen} />
-          <Stack.Screen name="PrepTimer" component={PrepTimerScreen} />
-          <Stack.Screen name="Guide" component={BatCareScreen} />
+          <Stack.Screen name="Heatmap"         component={HeatmapScreen} />
+          <Stack.Screen name="ActivityLog"     component={ActivityLogScreen} />
+          <Stack.Screen name="MicTest"         component={MicTestScreen} />
+          <Stack.Screen name="BatSearch"       component={BatSearchScreen} />
+          <Stack.Screen name="SeasonGuide"     component={SeasonGuideScreen} />
+          <Stack.Screen name="Profile"         component={ProfileScreen} />
+          <Stack.Screen name="PrepTimer"       component={PrepTimerScreen} />
+          <Stack.Screen name="Guide"           component={BatCareScreen} />
         </Stack.Navigator>
       </View>
     </NavigationContainer>
@@ -107,9 +116,41 @@ function AppNavigator() {
 }
 
 export default function App() {
+  const [fontsLoaded] = useFonts({
+    Nunito_300Light,
+    Nunito_400Regular,
+    Nunito_500Medium,
+    Nunito_600SemiBold,
+    Nunito_700Bold,
+    Nunito_800ExtraBold,
+    Nunito_900Black,
+  });
+
+  useEffect(() => {
+    const initAds = async () => {
+      try {
+        const consentInfo = await AdsConsent.requestInfoUpdate();
+        if (
+          consentInfo.isConsentFormAvailable &&
+          consentInfo.status === AdsConsentStatus.REQUIRED
+        ) {
+          await AdsConsent.showForm();
+        }
+      } catch (e) {
+        console.log('Consent error:', e);
+      }
+      try {
+        await mobileAds().initialize();
+      } catch (e) {
+        console.log('AdMob init error:', e);
+      }
+    };
+    initAds();
+  }, []);
+
   return (
     <SafeAreaProvider>
-      <ThemeProvider fontsLoaded={false}>
+      <ThemeProvider fontsLoaded={fontsLoaded ?? false}>
         <ProProvider>
           <AppNavigator />
         </ProProvider>

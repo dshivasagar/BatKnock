@@ -1,50 +1,36 @@
 /**
  * components/AdBanner.js
  *
- * Placeholder banner shown to free users at the bottom of key screens.
- * Returns null for Pro users — completely invisible.
+ * Real AdMob banner for free users. Returns null for Pro users.
+ * Uses test IDs in development, real IDs in production.
  *
- * TODO: Replace the inner View with AdMob <BannerAd /> when keys are ready:
- *   import { BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
- *   <BannerAd unitId={AD_UNIT_ID} size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER} />
+ * GDPR: requestNonPersonalizedAdsOnly is set to true by default.
+ * The UMP consent flow in App.js handles personalised ads opt-in.
  */
-import React from 'react';
-import { View, TouchableOpacity } from 'react-native';
-import { useTheme } from '../ThemeContext';
-import AppText from './AppText';
+import React, { useState } from 'react';
+import { View, Platform } from 'react-native';
+import { BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
 import { usePro } from '../contexts/ProContext';
 
-export default function AdBanner() {
-  const { isPro, showUpgrade } = usePro();
-  const { theme, fs } = useTheme();
+const BANNER_ID = {
+  ios:     __DEV__ ? TestIds.ADAPTIVE_BANNER : 'ca-app-pub-3077501095282358/1023021753',
+  android: __DEV__ ? TestIds.ADAPTIVE_BANNER : 'ca-app-pub-3077501095282358/1023021753',
+};
 
-  if (isPro) return null;
+export default function AdBanner() {
+  const { isPro } = usePro();
+  const [adFailed, setAdFailed] = useState(false);
+
+  if (isPro || adFailed) return null;
 
   return (
-    <TouchableOpacity onPress={showUpgrade} activeOpacity={0.85}>
-      <View style={{
-        backgroundColor: theme.bgCard,
-        borderTopWidth: 1, borderTopColor: theme.border,
-        paddingVertical: 10, paddingHorizontal: 16,
-        flexDirection: 'row', alignItems: 'center',
-        justifyContent: 'space-between', gap: 12,
-      }}>
-        <View style={{ flex: 1 }}>
-          <AppText style={{ color: theme.textSub, fontSize: fs(11), lineHeight: 16 }}>
-            📣 Ad placeholder — AdMob banner goes here
-          </AppText>
-          <AppText style={{ color: theme.textMuted, fontSize: fs(10) }}>
-            Upgrade to Pro to remove ads
-          </AppText>
-        </View>
-        <View style={{ backgroundColor: `${theme.accent}22`, paddingHorizontal: 10,
-                       paddingVertical: 5, borderRadius: 8,
-                       borderWidth: 1, borderColor: theme.accent }}>
-          <AppText style={{ color: theme.accent, fontSize: fs(11), fontWeight: '700' }}>
-            Go Pro
-          </AppText>
-        </View>
-      </View>
-    </TouchableOpacity>
+    <View style={{ alignItems: 'center', width: '100%' }}>
+      <BannerAd
+        unitId={BANNER_ID[Platform.OS] || BANNER_ID.ios}
+        size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+        requestOptions={{ requestNonPersonalizedAdsOnly: true }}
+        onAdFailedToLoad={() => setAdFailed(true)}
+      />
+    </View>
   );
 }

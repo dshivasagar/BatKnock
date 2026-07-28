@@ -2,7 +2,7 @@
   "expo": {
     "name": "Knockmate",
     "slug": "batknock",
-    "version": "1.4.1",
+    "version": "1.8.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -14,11 +14,13 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.batknock.app",
-      "buildNumber": "3",
+      "buildNumber": "4",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Knockmate uses the microphone to detect and count bat knocking sounds during preparation sessions.",
         "NSCameraUsageDescription": "Knockmate uses the camera to take photos of your bat.",
-        "UIBackgroundModes": ["audio", "audio"],
+        "UIBackgroundModes": [
+          "audio"
+        ],
         "ITSAppUsesNonExemptEncryption": false,
         "NSUserNotificationUsageDescription": "Knockmate sends reminders when your bat is ready for the next preparation phase."
       }
@@ -29,13 +31,15 @@
         "backgroundColor": "#111b21"
       },
       "package": "com.batknock.app",
-      "versionCode": 5,
+      "versionCode": 6,
       "permissions": [
         "RECORD_AUDIO",
         "MODIFY_AUDIO_SETTINGS",
         "VIBRATE",
         "RECEIVE_BOOT_COMPLETED",
-        "SCHEDULE_EXACT_ALARM"
+        "SCHEDULE_EXACT_ALARM",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
       ]
     },
     "web": {
@@ -46,6 +50,15 @@
         "projectId": "045ba8e6-a7d0-450f-8e15-a5224f721029"
       }
     },
-    "owner": "dshivasagar.auto"
+    "owner": "dshivasagar.auto",
+    "plugins": [
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-XXXXXXXXXXXXXXXX~XXXXXXXXXX",
+          "iosAppId": "ca-app-pub-3077501095282358~6703522607"
+        }
+      ]
+    ]
   }
 }
