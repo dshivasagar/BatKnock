@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { BlurView } from 'expo-blur';
 import {
-  View, ScrollView, TouchableOpacity,
+  View, Text, ScrollView, TouchableOpacity,
   RefreshControl, StyleSheet, Modal, TouchableWithoutFeedback, Dimensions,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -11,18 +11,20 @@ import { getBats, getSessions, getOverallStats } from '../storage/database';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { usePro } from '../contexts/ProContext';
 import AdBanner from '../components/AdBanner';
-import AppText from '../components/AppText';
-
-// Alias AppText as Text — every existing <Text> in this file gets Nunito automatically
-const Text = AppText;
 
 // ── DEVELOPER TESTING FLAG ─────────────────────────────────────────────────
 // Set to false before App Store / Play Store submission to hide the
 // Pro testing controls from users.
 const DEV_MODE = true;
 
-// ── Squircle icon component (Apple-style coloured icon tile) ─────────────────
-function IconTile({ emoji, bg, size = 52 }) {
+import KnockIcon from '../components/KnockIcon';
+import AppText from '../components/AppText';
+
+// ── Squircle icon component — uses KnockIcon when iconId is supplied ──────────
+function IconTile({ emoji, bg, iconId, size = 52 }) {
+  if (iconId) {
+    return <KnockIcon id={iconId} size={size} />;
+  }
   return (
     <View style={{
       width: size, height: size, borderRadius: size * 0.25,
@@ -206,15 +208,15 @@ export default function HomeScreen({ navigation }) {
   ];
 
   const ALL_SHORTCUTS = [
-    { id: 'activity',  label: 'Recent Sessions', icon: '📋', bg: '#1a1a2a', screen: 'ActivityLog' },
-    { id: 'trends',    label: 'Trends',          icon: '📈', bg: '#1a2a1a', screen: 'Trends' },
-    { id: 'knockin',   label: 'How to Knock',    icon: '📖', bg: '#2a1a3a', action: 'guide' },
-    { id: 'profile',   label: 'Profile',         icon: '👤', bg: '#2a1a2a', screen: 'Profile' },
-    { id: 'choosebat', label: 'Choose Your Bat', icon: '🧭', bg: '#3a2a1a', action: 'chooseguide' },
-    { id: 'batsearch', label: 'Bat Search',      icon: '🔍', bg: '#1a2a3a', screen: 'BatSearch' },
-    { id: 'batcare',   label: 'Bat Care',        icon: '📚', bg: '#1e3a5f', screen: 'Guide' },
-    { id: 'mybats',    label: 'My Bats',         icon: '🏏', bg: '#1e3a5f', screen: 'Bats' },
-    { id: 'season',    label: 'Season Guide',    icon: '🌍', bg: '#1a2a2a', screen: 'SeasonGuide' },
+    { id: 'activity',  label: 'Recent Sessions', icon: '📋', iconId: 'report',     bg: '#1a1a2a', screen: 'ActivityLog' },
+    { id: 'trends',    label: 'Trends',          icon: '📈', iconId: 'trends',     bg: '#1a2a1a', screen: 'Trends' },
+    { id: 'knockin',   label: 'How to Knock',    icon: '📖', iconId: 'howtoknock', bg: '#2a1a3a', action: 'guide' },
+    { id: 'profile',   label: 'Profile',         icon: '👤', iconId: 'profile',    bg: '#2a1a2a', screen: 'Profile' },
+    { id: 'choosebat', label: 'Choose Your Bat', icon: '🧭', iconId: 'choosebat', bg: '#3a2a1a', action: 'chooseguide' },
+    { id: 'batsearch', label: 'Bat Search',      icon: '🔍', iconId: 'search',     bg: '#1a2a3a', screen: 'BatSearch' },
+    { id: 'batcare',   label: 'Bat Care',        icon: '📚', iconId: 'batcare',    bg: '#1e3a5f', screen: 'Guide' },
+    { id: 'mybats',    label: 'My Bats',         icon: '🏏', iconId: 'bats',       bg: '#1e3a5f', screen: 'Bats' },
+    { id: 'season',    label: 'Season Guide',    icon: '🌍', iconId: 'season',     bg: '#1a2a2a', screen: 'SeasonGuide' },
   ];
 
   const saveShortcuts = async (newShortcuts) => {
@@ -339,9 +341,9 @@ export default function HomeScreen({ navigation }) {
           <Text style={S.sectionLabel}>QUICK ACTIONS</Text>
           <View style={{ flexDirection: 'row', gap: 10 }}>
             {[
-              { label: 'Choose Your Bat', icon: '🧭', bg: '#3a2a1a', action: 'chooseguide' },
-              { label: 'Bat Search',      icon: '🔍', bg: '#1a2a3a', screen: 'BatSearch' },
-              { label: 'Bat Care',        icon: '📚', bg: '#1e3a5f', screen: 'Guide' },
+              { label: 'Choose Your Bat', icon: '🧭', iconId: 'choosebat', bg: '#3a2a1a', action: 'chooseguide' },
+              { label: 'Bat Search',      icon: '🔍', iconId: 'search',    bg: '#1a2a3a', screen: 'BatSearch' },
+              { label: 'Bat Care',        icon: '📚', iconId: 'batcare',   bg: '#1e3a5f', screen: 'Guide' },
             ].map(item => (
               <GradientCard key={item.label} style={{ flex: 1 }}
                 onPress={() => {
@@ -353,7 +355,9 @@ export default function HomeScreen({ navigation }) {
                     width: 48, height: 48, borderRadius: 14,
                     backgroundColor: item.bg, alignItems: 'center', justifyContent: 'center',
                   }}>
-                    <Text style={{ fontSize: 24 }}>{item.icon}</Text>
+                    {item.iconId
+                      ? <KnockIcon id={item.iconId} size={48} />
+                      : <Text style={{ fontSize: 24 }}>{item.icon}</Text>}
                   </View>
                   <Text style={{ color: theme.text, fontSize: F.sm, fontWeight: '700', textAlign: 'center' }}>{item.label}</Text>
                 </View>
@@ -397,7 +401,9 @@ export default function HomeScreen({ navigation }) {
                   <View style={{ paddingVertical: 18, alignItems: 'center', gap: 8 }}>
                     <View style={{ width: 48, height: 48, borderRadius: 14,
                                    backgroundColor: item.bg, alignItems: 'center', justifyContent: 'center' }}>
-                      <Text style={{ fontSize: 22 }}>{item.icon}</Text>
+                      {item.iconId
+                        ? <KnockIcon id={item.iconId} size={46} />
+                        : <Text style={{ fontSize: 22 }}>{item.icon}</Text>}
                     </View>
                     <Text style={{ color: theme.text, fontSize: F.sm, fontWeight: '700', textAlign: 'center' }}>{item.label}</Text>
                     <TouchableOpacity onPress={() => { setEditingSlot(idx); setShowShortcutPicker(true); }}
