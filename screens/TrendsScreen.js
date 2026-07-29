@@ -5,6 +5,7 @@ import { useTheme } from '../ThemeContext';
 import NavBar from '../components/NavBar';
 import { getSessions, getBats } from '../storage/database';
 import AppText from '../components/AppText';
+import KnockIcon from '../components/KnockIcon';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getCurrentPhase } from '../components/PrepJourneyCard';
 import { getPhaseTargetMinutes } from '../utils/targets';
@@ -17,10 +18,10 @@ const PHASE_META = {
 };
 
 const CURRENT_PHASE_BADGE = {
-  oiling: { label: 'Oiling',  icon: '🛢️', color: '#fb923c' },
-  light:  { label: 'Light',   icon: '🔨', color: '#60a5fa' },
-  medium: { label: 'Medium',  icon: '💪', color: '#a78bfa' },
-  full:   { label: 'Full',    icon: '🏏', color: '#34d399' },
+  oiling: { id: 'oiling', label: 'Oiling',  icon: '🛢️', color: '#fb923c' },
+  light:  { id: 'light',  label: 'Light',   icon: '🔨', color: '#60a5fa' },
+  medium: { id: 'medium', label: 'Medium',  icon: '💪', color: '#a78bfa' },
+  full:   { id: 'full',   label: 'Full',    icon: '🏏', color: '#34d399' },
 };
 
 export default function TrendsScreen({ navigation }) {
@@ -133,11 +134,13 @@ export default function TrendsScreen({ navigation }) {
                     {bat.name || bat.brand}
                   </AppText>
                   {badge ? (
-                    <View style={{ backgroundColor: `${badge.color}22`, paddingHorizontal: 10,
-                                   paddingVertical: 4, borderRadius: 10,
-                                   borderWidth: 1, borderColor: badge.color }}>
+                    <View style={{ backgroundColor: `${badge.color}22`, paddingHorizontal: 8,
+                                   paddingVertical: 3, borderRadius: 10,
+                                   borderWidth: 1, borderColor: badge.color,
+                                   flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                      <KnockIcon id={badge.id === 'oiling' ? 'oiling' : badge.id === 'light' ? 'light' : badge.id === 'medium' ? 'medium' : 'full'} size={16} />
                       <AppText style={{ color: badge.color, fontSize: fs(11), fontWeight: '700' }}>
-                        {badge.icon} {badge.label}
+                        {badge.label}
                       </AppText>
                     </View>
                   ) : (
@@ -171,7 +174,7 @@ export default function TrendsScreen({ navigation }) {
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between',
                                        marginBottom: 3 }}>
                           <AppText style={{ color: theme.textSub, fontSize: fs(11) }}>
-                            {p.icon} {p.label}
+                            {p.label}
                           </AppText>
                           <AppText style={{ color: phasePct >= 100 ? p.color : theme.textSub,
                                            fontSize: fs(11), fontWeight: '700' }}>
@@ -219,7 +222,7 @@ export default function TrendsScreen({ navigation }) {
                           <View style={{ backgroundColor: `${meta.color}22`, paddingHorizontal: 6,
                                          paddingVertical: 2, borderRadius: 6 }}>
                             <AppText style={{ color: meta.color, fontSize: fs(10), fontWeight: '700' }}>
-                              {meta.icon} {meta.label}
+                              {meta.label}
                             </AppText>
                           </View>
                         )}

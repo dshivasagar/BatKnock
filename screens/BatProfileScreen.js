@@ -22,7 +22,8 @@ import NavBar, { NavButton } from '../components/NavBar';
 import { getBatById, getSessionsByBat, saveBat, deleteBat,
          saveSession, saveBatPoints, getBatPoints, generateId } from '../storage/database';
 import AppText from '../components/AppText';
-const Text = AppText; // Nunito alias
+import KnockIcon from '../components/KnockIcon';
+const Text = AppText;
 import PrepJourneyCard, { getCurrentPhase } from '../components/PrepJourneyCard';
 import { getLearnedRateKPM, knocksToMinutes, minutesToKnocks } from '../utils/targets';
 import { getBatReportData, generateReportHTML } from '../utils/generateBatReport';
@@ -275,13 +276,13 @@ export default function BatProfileScreen({ navigation, route }) {
             <NavButton type="custom"
               onPress={() => navigation.navigate('Heatmap', { bat })}
               style={{ backgroundColor: theme.bgInput, borderColor: theme.border }}>
-              <AppText style={{ fontSize: fs(15) }}>🔥</AppText>
+              <KnockIcon id="heatmap" size={28} />
             </NavButton>
             <NavButton type="custom"
               onPress={() => isPro ? shareReport() : showUpgrade()}
               style={{ backgroundColor: theme.bgInput, borderColor: theme.border,
                        opacity: reportLoading ? 0.5 : 1 }}>
-              <AppText style={{ fontSize: fs(15) }}>📋</AppText>
+              <KnockIcon id="report" size={28} />
             </NavButton>
             <NavButton type="home" onPress={() => navigation.navigate('Main')} />
             <NavButton type="custom"
@@ -457,7 +458,7 @@ export default function BatProfileScreen({ navigation, route }) {
               alignItems: 'center', flexDirection: 'row', justifyContent: 'center',
               gap: 8, borderWidth: 1, borderColor: theme.border,
             }}>
-            <AppText style={{ fontSize: fs(16) }}>🤖</AppText>
+            <KnockIcon id="machine" size={22} />
             <AppText style={{ color: theme.text, fontSize: fs(14), fontWeight: '700' }}>
               Log Machine / External Knocking
             </AppText>

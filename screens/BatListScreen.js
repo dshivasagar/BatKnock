@@ -5,7 +5,8 @@ import { useTheme } from '../ThemeContext';
 import NavBar, { NavButton } from '../components/NavBar';
 import { getBats, deleteBat } from '../storage/database';
 import AppText from '../components/AppText';
-const Text = AppText; // Nunito alias
+import KnockIcon from '../components/KnockIcon';
+const Text = AppText;
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { usePro } from '../contexts/ProContext';
 import AdBanner from '../components/AdBanner';
@@ -42,7 +43,7 @@ export default function BatListScreen({ navigation }) {
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         {bats.length === 0 ? (
           <View style={{ alignItems: 'center', paddingTop: 60 }}>
-            <AppText style={{ fontSize: 48, marginBottom: 16 }}>🏏</AppText>
+            <KnockIcon id="bats" size={72} style={{ marginBottom: 16 }} />
             <AppText style={{ color: theme.text, fontSize: fs(18), fontWeight: '700' }}>No bats yet</AppText>
             <AppText style={{ color: theme.textSub, fontSize: fs(14), marginTop: 8 }}>Add your first bat to start tracking</AppText>
             <TouchableOpacity onPress={handleAddBat}
