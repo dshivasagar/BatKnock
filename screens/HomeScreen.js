@@ -2,7 +2,6 @@ import React, { useState, useCallback, useEffect } from "react";
 import { BlurView } from "expo-blur";
 import {
   View,
-  Text,
   ScrollView,
   TouchableOpacity,
   RefreshControl,
@@ -18,15 +17,15 @@ import { getBats, getSessions, getOverallStats } from "../storage/database";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { usePro } from "../contexts/ProContext";
 import AdBanner from "../components/AdBanner";
+import KnockIcon from "../components/KnockIcon";
+import AppText from "../components/AppText";
+const Text = AppText; // Nunito font alias — do not remove
 
 // ── DEVELOPER TESTING FLAG ─────────────────────────────────────────────────
 // Set to false before App Store / Play Store submission to hide the
 // Pro testing controls from users.
 const DEV_MODE = true;
 
-import KnockIcon from "../components/KnockIcon";
-import AppText from "../components/AppText";
-const Text = AppText; // Use custom font text component for consistent font family
 
 // ── Squircle icon component — uses KnockIcon when iconId is supplied ──────────
 function IconTile({ emoji, bg, iconId, size = 52 }) {
