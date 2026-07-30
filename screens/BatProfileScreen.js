@@ -10,7 +10,7 @@
 
 import React, { useState, useCallback } from 'react';
 import {
-  View, ScrollView, TouchableOpacity,
+  View, Text, ScrollView, TouchableOpacity,
   Alert, Image, ActivityIndicator, Modal, TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -23,7 +23,6 @@ import { getBatById, getSessionsByBat, saveBat, deleteBat,
          saveSession, saveBatPoints, getBatPoints, generateId } from '../storage/database';
 import AppText from '../components/AppText';
 import KnockIcon from '../components/KnockIcon';
-const Text = AppText;
 import PrepJourneyCard, { getCurrentPhase } from '../components/PrepJourneyCard';
 import { getLearnedRateKPM, knocksToMinutes, minutesToKnocks } from '../utils/targets';
 import { getBatReportData, generateReportHTML } from '../utils/generateBatReport';
@@ -325,7 +324,7 @@ export default function BatProfileScreen({ navigation, route }) {
             </>
           ) : (
             <View style={{ alignItems: 'center', gap: 10 }}>
-              <AppText style={{ fontSize: 52 }}>🏏</AppText>
+              <KnockIcon id="bats" size={52} />
               <View style={{ backgroundColor: theme.accentDim, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12 }}>
                 <AppText style={{ color: theme.accent, fontSize: fs(13), fontWeight: '700' }}>📷 Add Bat Photo</AppText>
               </View>
@@ -412,7 +411,7 @@ export default function BatProfileScreen({ navigation, route }) {
           <View style={{ marginHorizontal: 16, marginBottom: 12, backgroundColor: theme.bgCard,
                          borderRadius: 16, padding: 16, borderWidth: 1, borderColor: theme.border,
                          flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <AppText style={{ fontSize: 28 }}>🔨</AppText>
+            <KnockIcon id="light" size={28} />
             <View style={{ flex: 1 }}>
               <AppText style={{ color: theme.text, fontSize: fs(14), fontWeight: '700' }}>
                 Free Knocking Mode

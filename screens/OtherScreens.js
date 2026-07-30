@@ -1,12 +1,12 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { View, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Audio } from 'expo-av';
 import { useTheme } from '../ThemeContext';
 import NavBar, { NavButton } from '../components/NavBar';
 import { getSessions } from '../storage/database';
 import AppText from '../components/AppText';
-const Text = AppText; // Nunito alias
+import KnockIcon from '../components/KnockIcon';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 // ─── ACTIVITY LOG ────────────────────────────────────────────
@@ -24,7 +24,7 @@ export function ActivityLogScreen({ navigation }) {
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         {sessions.length === 0 ? (
           <View style={{ alignItems: 'center', paddingTop: 60 }}>
-            <AppText style={{ fontSize: 40, marginBottom: 12 }}>📋</AppText>
+            <KnockIcon id="report" size={56} style={{ marginBottom: 12 }} />
             <AppText style={{ color: theme.text, fontSize: fs(18), fontWeight: '700' }}>No activity yet</AppText>
             <AppText style={{ color: theme.textSub, fontSize: fs(14), marginTop: 8 }}>Sessions will appear here</AppText>
           </View>

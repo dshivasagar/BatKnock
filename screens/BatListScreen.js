@@ -1,12 +1,11 @@
 import React, { useState, useCallback } from 'react';
-import { View, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../ThemeContext';
 import NavBar, { NavButton } from '../components/NavBar';
 import { getBats, deleteBat } from '../storage/database';
 import AppText from '../components/AppText';
 import KnockIcon from '../components/KnockIcon';
-const Text = AppText;
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { usePro } from '../contexts/ProContext';
 import AdBanner from '../components/AdBanner';
@@ -60,7 +59,7 @@ export default function BatListScreen({ navigation }) {
                 onPress={() => navigation.navigate('BatProfile', { bat })}
                 onLongPress={() => handleDelete(bat)}>
                 <View style={{ width: 52, height: 52, borderRadius: 12, backgroundColor: theme.bgInput, alignItems: 'center', justifyContent: 'center', marginRight: 14, borderWidth: 1, borderColor: theme.border }}>
-                  <AppText style={{ fontSize: fs(24) }}>🏏</AppText>
+                  <KnockIcon id="bats" size={32} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>

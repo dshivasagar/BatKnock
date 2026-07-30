@@ -8,7 +8,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, ScrollView, TouchableOpacity, Alert, Modal,
+  View, Text, ScrollView, TouchableOpacity, Alert, Modal,
   TouchableWithoutFeedback,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,7 +18,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../ThemeContext';
 import NavBar from '../components/NavBar';
 import AppText from '../components/AppText';
-const Text = AppText; // Nunito alias
+import KnockIcon from '../components/KnockIcon';
 import { getBats } from '../storage/database';
 
 const STORAGE_KEY     = 'knockmate_prep_timers';
@@ -232,7 +232,7 @@ export default function PrepTimerScreen({ navigation, route }) {
                      borderWidth: 1.5, borderColor: selectedBat ? theme.accent : theme.border,
                      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <AppText style={{ fontSize: 22 }}>🏏</AppText>
+              <KnockIcon id="session" size={28} />
               <View>
                 <AppText style={{ color: theme.text, fontSize: fs(15), fontWeight: '700' }}>
                   {selectedBat ? (selectedBat.name || selectedBat.brand) : 'Select a bat'}
@@ -406,7 +406,7 @@ export default function PrepTimerScreen({ navigation, route }) {
                              backgroundColor: selectedBat?.id === bat.id ? theme.accentDim : theme.bgInput,
                              borderWidth: 1.5,
                              borderColor: selectedBat?.id === bat.id ? theme.accent : theme.border }}>
-                    <AppText style={{ fontSize: 24 }}>🏏</AppText>
+                    <KnockIcon id="session" size={28} />
                     <View style={{ flex: 1 }}>
                       <AppText style={{ color: selectedBat?.id === bat.id ? theme.accent : theme.text,
                                         fontSize: fs(15), fontWeight: '700' }}>

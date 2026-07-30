@@ -25,6 +25,7 @@ import { useTheme } from '../ThemeContext';
 import NavBar from '../components/NavBar';
 import { getBatPoints, saveBat, getBatById } from '../storage/database';
 import AppText from '../components/AppText';
+import KnockIcon from '../components/KnockIcon';
 import { usePro } from '../contexts/ProContext';
 
 const ZONE_LABELS = {
@@ -414,7 +415,7 @@ export default function HeatmapScreen({ navigation, route }) {
           </View>
         ) : (
           <View style={{ padding: 40, alignItems: 'center' }}>
-            <AppText style={{ fontSize: 52, marginBottom: 12 }}>🏏</AppText>
+            <KnockIcon id="bats" size={64} style={{ marginBottom: 12 }} />
             <AppText style={{ color: theme.text, fontSize: fs(15), fontWeight: '700', textAlign: 'center' }}>
               Add a bat photo to see the heatmap
             </AppText>
