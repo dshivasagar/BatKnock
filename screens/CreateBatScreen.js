@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, ScrollView, TouchableOpacity,
+  View, Text, ScrollView, TouchableOpacity,
   TextInput, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,8 +11,6 @@ import {
   getLearnedRateKPM, resolveTarget,
   knocksToMinutes, minutesToKnocks, formatMinutesAsHours,
 } from '../utils/targets';
-import AppText from '../components/AppText';
-const Text = AppText; // Nunito alias
 
 const BAT_SIZES    = ['Size 4', 'Size 5', 'Size 6', 'Harrow', 'SH', 'LH'];
 const WILLOW_TYPES = ['Grade 1', 'Grade 2', 'Grade 3', 'Kashmir', 'English'];
@@ -28,7 +26,7 @@ export default function CreateBatScreen({ navigation, route }) {
   const [grains,        setGrains]        = useState(editing?.grains?.toString()        || '');
   const [notes,         setNotes]         = useState(editing?.notes         || '');
   const [batPurpose,    setBatPurpose]    = useState(editing?.bat_purpose   || 'new_bat');
-  const [targetType,    setTargetType]    = useState(editing?.target_type   || 'knock_count');
+  const [targetType,    setTargetType]    = useState(editing?.target_type   || 'time_based');
   const [targetKnocks,  setTargetKnocks]  = useState(editing?.target_knocks?.toString()  || '5000');
   const [targetMinutes, setTargetMinutes] = useState(editing?.target_minutes?.toString() || '120');
   const [saving,        setSaving]        = useState(false);
@@ -114,44 +112,6 @@ export default function CreateBatScreen({ navigation, route }) {
           placeholder="e.g. SG, GM, Kookaburra"
           placeholderTextColor={theme.textMuted} />
 
-        {/* Willow type */}
-        <Text style={label}>WILLOW TYPE</Text>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-          {WILLOW_TYPES.map(w => (
-            <TouchableOpacity key={w} style={chip(willowType === w)}
-              onPress={() => setWillowType(w)}>
-              <Text style={chipText(willowType === w)}>{w}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Bat size */}
-        <Text style={label}>BAT SIZE</Text>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-          {BAT_SIZES.map(s => (
-            <TouchableOpacity key={s} style={chip(batSize === s)}
-              onPress={() => setBatSize(s)}>
-              <Text style={chipText(batSize === s)}>{s}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Weight + grains */}
-        <View style={{ flexDirection: 'row', gap: 12 }}>
-          <View style={{ flex: 1 }}>
-            <Text style={label}>WEIGHT (G)</Text>
-            <TextInput style={input} value={weight} onChangeText={setWeight}
-              placeholder="1200" placeholderTextColor={theme.textMuted}
-              keyboardType="numeric" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={label}>GRAIN COUNT</Text>
-            <TextInput style={input} value={grains} onChangeText={setGrains}
-              placeholder="8" placeholderTextColor={theme.textMuted}
-              keyboardType="numeric" />
-          </View>
-        </View>
-
         {/* Bat purpose — drives which journey phases are shown */}
         <Text style={label}>BAT PURPOSE</Text>
         <View style={{ gap: 8 }}>
@@ -223,10 +183,10 @@ export default function CreateBatScreen({ navigation, route }) {
         )}
 
         {/* Notes */}
-        <Text style={label}>NOTES</Text>
+        <Text style={label}>NOTES (OPTIONAL)</Text>
         <TextInput style={[input, { height: 90, textAlignVertical: 'top' }]}
           value={notes} onChangeText={setNotes}
-          placeholder="Any notes about this bat..."
+          placeholder={"Add any optional details here — e.g. willow type (English/Kashmir), bat size (SH/6/5), weight (g), grain count, or anything else about this bat."}
           placeholderTextColor={theme.textMuted}
           multiline numberOfLines={3} />
 
