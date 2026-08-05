@@ -1,9 +1,10 @@
 /**
  * contexts/ProContext.js
  *
- * RevenueCat integration for Knockmate Pro.
- * Falls back to AsyncStorage if RevenueCat native module isn't available
- * (e.g. Expo Go during development — use DEV_MODE in HomeScreen to test).
+ * FORCE_FREE_KEY — when set to 'true' in AsyncStorage, overrides RevenueCat
+ * entirely and keeps isPro = false. This makes DEV_MODE "Reset to Free"
+ * reliable even when a sandbox entitlement is active in RevenueCat.
+ * Cleared automatically when the user makes a real purchase.
  */
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Alert, Platform } from 'react-native';
@@ -14,7 +15,8 @@ import UpgradeModal from '../components/UpgradeModal';
 const REVENUECAT_IOS_KEY     = 'appl_pOZOoJvqkneHGkhLcpmsgNLILDn';
 const REVENUECAT_ANDROID_KEY = 'goog_QGRBjVJpTsnCmFSFPeksAlItJjO';
 const ENTITLEMENT_ID         = 'pro';
-const PRO_FALLBACK_KEY       = 'knockmate_is_pro'; // AsyncStorage fallback for Expo Go
+const PRO_FALLBACK_KEY       = 'knockmate_is_pro';
+const FORCE_FREE_KEY         = 'knockmate_force_free'; // DEV override
 
 const ProContext = createContext({
   isPro:         false,
@@ -30,9 +32,7 @@ export function ProProvider({ children }) {
   const [loading,        setLoading]        = useState(true);
   const [rcAvailable,    setRcAvailable]    = useState(false);
 
-  useEffect(() => {
-    initRevenueCat();
-  }, []);
+  useEffect(() => { initRevenueCat(); }, []);
 
   const initRevenueCat = async () => {
     try {
@@ -43,8 +43,7 @@ export function ProProvider({ children }) {
       setRcAvailable(true);
       await checkProStatus(true);
     } catch (e) {
-      // Native module not available (Expo Go) — fall back to AsyncStorage
-      console.log('RevenueCat not available, using AsyncStorage fallback:', e.message);
+      console.log('RevenueCat unavailable, using AsyncStorage fallback:', e.message);
       setRcAvailable(false);
       const val = await AsyncStorage.getItem(PRO_FALLBACK_KEY);
       setIsPro(val === 'true');
@@ -53,8 +52,15 @@ export function ProProvider({ children }) {
     }
   };
 
-  const checkProStatus = async (isRevenueCatReady = rcAvailable) => {
-    if (isRevenueCatReady) {
+  const checkProStatus = async (isRcReady = rcAvailable) => {
+    // ── DEV override — force free regardless of RevenueCat ───────────────
+    const forceFree = await AsyncStorage.getItem(FORCE_FREE_KEY);
+    if (forceFree === 'true') {
+      setIsPro(false);
+      return;
+    }
+
+    if (isRcReady) {
       try {
         const customerInfo = await Purchases.getCustomerInfo();
         setIsPro(customerInfo.entitlements.active[ENTITLEMENT_ID] !== undefined);
@@ -67,10 +73,12 @@ export function ProProvider({ children }) {
     }
   };
 
-  // ── Purchase ──────────────────────────────────────────────────────────
+  // ── Purchase (replaces body with RevenueCat call) ─────────────────────
   const activatePro = async () => {
+    // Clear force-free override whenever activating
+    await AsyncStorage.removeItem(FORCE_FREE_KEY);
+
     if (!rcAvailable) {
-      // DEV fallback — no real payment
       await AsyncStorage.setItem(PRO_FALLBACK_KEY, 'true');
       setIsPro(true);
       setUpgradeVisible(false);
@@ -86,8 +94,9 @@ export function ProProvider({ children }) {
           'Knockmate Pro is not available right now. Please try again later.');
         return;
       }
-      const pkg = offerings.current.availablePackages[0];
-      const { customerInfo } = await Purchases.purchasePackage(pkg);
+      const { customerInfo } = await Purchases.purchasePackage(
+        offerings.current.availablePackages[0]
+      );
       const pro = customerInfo.entitlements.active[ENTITLEMENT_ID] !== undefined;
       setIsPro(pro);
       if (pro) {
@@ -97,22 +106,23 @@ export function ProProvider({ children }) {
       }
     } catch (e) {
       if (!e.userCancelled) {
-        Alert.alert('Purchase Failed',
-          e.message || 'Something went wrong. Please try again.');
+        Alert.alert('Purchase Failed', e.message || 'Something went wrong. Please try again.');
       }
     }
   };
 
   // ── Restore ───────────────────────────────────────────────────────────
   const restorePro = async () => {
+    await AsyncStorage.removeItem(FORCE_FREE_KEY);
+
     if (!rcAvailable) {
       const val = await AsyncStorage.getItem(PRO_FALLBACK_KEY);
       const restored = val === 'true';
       if (restored) { setIsPro(true); setUpgradeVisible(false); }
       Alert.alert(
         restored ? '✅ Pro Restored' : 'No Purchase Found',
-        restored ? 'Knockmate Pro has been restored.' :
-                   'No previous purchase was found for this account.',
+        restored ? 'Knockmate Pro has been restored.'
+                 : 'No previous purchase was found for this account.',
       );
       return;
     }
@@ -124,16 +134,17 @@ export function ProProvider({ children }) {
       if (restored) setUpgradeVisible(false);
       Alert.alert(
         restored ? '✅ Pro Restored' : 'No Purchase Found',
-        restored ? 'Knockmate Pro has been restored successfully.' :
-                   'No previous purchase was found for this account.',
+        restored ? 'Knockmate Pro has been restored successfully.'
+                 : 'No previous purchase was found for this account.',
       );
     } catch (e) {
       Alert.alert('Restore Failed', e.message || 'Something went wrong. Please try again.');
     }
   };
 
-  // ── Dev reset (DEV_MODE only) ─────────────────────────────────────────
+  // ── DEV: Reset to free — sets force-free flag so RC can't override ────
   const deactivatePro = async () => {
+    await AsyncStorage.setItem(FORCE_FREE_KEY, 'true');
     await AsyncStorage.setItem(PRO_FALLBACK_KEY, 'false');
     setIsPro(false);
   };
@@ -141,11 +152,12 @@ export function ProProvider({ children }) {
   const showUpgrade = () => setUpgradeVisible(true);
   const hideUpgrade = () => setUpgradeVisible(false);
 
+  // Render children even during load so ThemeProvider is always available
   if (loading) {
     return (
       <ProContext.Provider value={{
-        isPro: false, showUpgrade: () => {}, activatePro,
-        deactivatePro, restorePro,
+        isPro: false, showUpgrade: () => {},
+        activatePro, deactivatePro, restorePro,
       }}>
         {children}
       </ProContext.Provider>
